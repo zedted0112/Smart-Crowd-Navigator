@@ -11,20 +11,30 @@
     <div id="map-container">
         <!-- SVG Canvas for Map -->
         <svg id="venue-svg" width="100%" height="100%" preserveAspectRatio="xMidYMid meet">
-            <g id="zones"></g>
+            <g id="grid-layer"></g>
+            <g id="seats-layer"></g>
             <!-- Background paths drawn in light gray -->
             <g id="all-paths"></g>
             <g id="active-path-original"></g>
             <g id="active-path-optimized"></g>
             <g id="nodes"></g>
+            <g id="people-layer"></g>
+            <g id="user-layer"></g>
         </svg>
     </div>
 
     <!-- UI Overlay -->
     <div id="control-panel" class="panel">
         <h1>Stadium Navigator</h1>
-        
+        <div class="destinations" style="margin-bottom: 20px; border-bottom: 1px solid #ddd; padding-bottom: 16px;">
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 8px; font-weight: 600; text-transform: uppercase;">Select Scenario</p>
+            <button id="btn-normal" class="btn btn-scenario active-scenario" onclick="setScenario('normal')">Normal Traffic</button>
+            <button id="btn-washroom" class="btn btn-scenario" onclick="setScenario('washroom')">Washroom Rush</button>
+            <button id="btn-food" class="btn btn-scenario" onclick="setScenario('food')">Food Court Rush</button>
+        </div>
+
         <div class="destinations">
+            <p style="font-size: 0.85rem; color: #666; margin-bottom: 4px; font-weight: 600; text-transform: uppercase;">Navigate</p>
             <button class="btn" onclick="navigateTo('food')">Go to Food</button>
             <button class="btn" onclick="navigateTo('washroom')">Go to Washroom</button>
             <button class="btn" onclick="navigateTo('seat')">Go to Seat A12</button>
@@ -34,9 +44,70 @@
             <h3>Navigation Info</h3>
             <p><strong>Destination:</strong> <span id="info-dest">None</span></p>
             <p><strong>ETA:</strong> <span id="info-eta">-- mins</span></p>
+            <p id="info-crowd-density" class="alert-text"></p>
             <p id="info-congestion" class="alert-text"></p>
             <p id="info-alert" class="alert-text"></p>
         </div>
+    </div>
+
+    <!-- Right Control Dashboard -->
+    <div class="dashboard-panel">
+        <h3 style="margin-top:0;">Control Dashboard</h3>
+        
+        <div class="dash-section">
+            <h4>Crowd Controls</h4>
+            <label>Crowd Density (<span id="val-density">80</span>)
+                <input type="range" id="ctrl-density" min="10" max="250" value="80">
+            </label>
+            <label>Movement Speed (<span id="val-speed">1x</span>)
+                <input type="range" id="ctrl-speed" min="0.1" max="3" step="0.1" value="1">
+            </label>
+            <label class="checkbox-label">
+                <input type="checkbox" id="ctrl-corridor" checked> Corridor Bias (Structured)
+            </label>
+        </div>
+
+        <div class="dash-section">
+            <h4>Routing Behavior</h4>
+            <label class="checkbox-label">
+                <input type="checkbox" id="ctrl-smart-routing" checked> Smart Rerouting Enabled
+            </label>
+            <label>Detour Mode
+                <select id="ctrl-detour-mode">
+                    <option value="local">Local Detour (Bounding)</option>
+                    <option value="full">Full Reroute (Outer)</option>
+                </select>
+            </label>
+            <label>Congestion Sensitivity (<span id="val-sensitivity">3</span>)
+                <input type="range" id="ctrl-sensitivity" min="1" max="10" value="3">
+            </label>
+        </div>
+
+        <div class="dash-section live-feedback">
+            <h4>Live Navigation Feedback</h4>
+            <div class="feedback-row"><strong>Active Route:</strong> <span id="feed-route-type">Primary</span></div>
+            <div class="feedback-row"><strong>Grid Congestion:</strong> <span id="feed-congestion">Clear</span></div>
+            <div class="feedback-row"><strong>Obstacles on Path:</strong> <span id="feed-people-path">0</span> people</div>
+        </div>
+
+        <p style="font-size:11px; color:#666;"><em>Click anywhere on the map to manually drop a red congestion hotspot!</em></p>
+
+        <button class="btn btn-scenario" id="btn-reset" style="width:100%; margin-top:10px; background-color:#d32f2f; color:white;">Reset Simulation</button>
+    </div>
+
+    <!-- Map Legend -->
+    <div id="legend-panel" class="legend">
+        <h4>Legend</h4>
+        <ul>
+            <li><span class="legend-dot user-color"></span> You (User)</li>
+            <li><span class="legend-dot person-color"></span> Person</li>
+            <li><span class="legend-box green"></span> Low crowd</li>
+            <li><span class="legend-box yellow"></span> Medium crowd</li>
+            <li><span class="legend-box red"></span> High congestion</li>
+            <li><span class="legend-line gray-dash"></span> Normal Route</li>
+            <li><span class="legend-line red-dash"></span> Blocked Route</li>
+            <li><span class="legend-line blue"></span> Safe Route</li>
+        </ul>
     </div>
 
     <script src="app.js"></script>
