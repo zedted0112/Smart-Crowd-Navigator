@@ -60,6 +60,19 @@ body, html {
     stroke-dasharray: 8 6;
 }
 
+.path-blocked {
+    fill: none;
+    stroke: #d9534f;
+    stroke-width: 6;
+    stroke-dasharray: 8 6;
+    animation: flashBlocked 2s infinite alternate;
+}
+
+@keyframes flashBlocked {
+    from { filter: drop-shadow(0 0 2px rgba(217, 83, 79, 0.5)); stroke-opacity: 0.7; }
+    to { filter: drop-shadow(0 0 8px rgba(217, 83, 79, 1)); stroke-opacity: 1; }
+}
+
 .path-optimized {
     fill: none;
     stroke: #007BFF;
@@ -67,7 +80,7 @@ body, html {
     stroke-linecap: round;
     stroke-linejoin: round;
     filter: drop-shadow(0 0 4px rgba(0, 123, 255, 0.5));
-    animation: drawPath 1s ease-out forwards;
+    animation: drawPath 2s ease-out forwards;
 }
 
 @keyframes drawPath {
@@ -78,6 +91,99 @@ body, html {
 .zone-circle {
     mix-blend-mode: multiply;
     transition: fill 0.5s ease;
+}
+
+.seat-dot {
+    fill: none;
+    stroke: #b0bec5;
+    stroke-width: 2;
+}
+
+.user-dot {
+    fill: #ff9800;
+    stroke: #fff;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 6px rgba(255, 152, 0, 0.9));
+}
+
+.person-dot {
+    fill: #455a64;
+    opacity: 0.8;
+}
+
+/* Dashboard Overlay */
+.dashboard-panel {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.95);
+    padding: 24px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(8px);
+    width: 320px;
+    z-index: 5;
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    font-size: 14px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.dash-section {
+    background-color: rgba(0,0,0,0.03);
+    padding: 12px;
+    border-radius: 8px;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+.dash-section h4 {
+    margin: 0 0 10px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    color: #666;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding-bottom: 4px;
+}
+
+.dash-section label {
+    display: flex;
+    flex-direction: column;
+    font-size: 13px;
+    margin-bottom: 12px;
+    font-weight: 500;
+    color: #333;
+}
+
+.dash-section input[type="range"] {
+    margin-top: 6px;
+}
+
+.dash-section select {
+    margin-top: 4px;
+    padding: 4px;
+    border-radius: 4px;
+    border: 1px solid #ccc;
+    font-family: inherit;
+    font-size: 13px;
+}
+
+.checkbox-label {
+    flex-direction: row !important;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400 !important;
+    cursor: pointer;
+    margin-bottom: 5px !important;
+}
+
+.live-feedback .feedback-row {
+    margin-bottom: 6px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 12px;
 }
 
 /* UI Panel */
@@ -131,6 +237,23 @@ h1 {
     transform: translateY(0);
 }
 
+.btn-scenario {
+    background-color: #6c757d;
+}
+
+.btn-scenario:hover {
+    background-color: #5a6268;
+}
+
+.active-scenario {
+    background-color: #28a745;
+    box-shadow: 0 4px 6px rgba(40, 167, 69, 0.4);
+}
+
+.active-scenario:hover {
+    background-color: #218838;
+}
+
 .info-card {
     margin-top: 24px;
     padding-top: 16px;
@@ -177,6 +300,90 @@ h1 {
     color: #0056b3;
     background-color: #e8f4fd;
 }
+/* Map Legend styling */
+.legend {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: rgba(255, 255, 255, 0.9);
+    padding: 16px;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    backdrop-filter: blur(4px);
+    border: 1px solid rgba(200, 200, 200, 0.5);
+    font-size: 0.85rem;
+    z-index: 5;
+}
+
+.legend h4 {
+    margin-bottom: 8px;
+    color: #444;
+}
+
+.legend ul {
+    list-style: none;
+}
+
+.legend li {
+    display: flex;
+    align-items: center;
+    margin-bottom: 6px;
+    color: #555;
+}
+
+.legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    margin-right: 8px;
+    display: inline-block;
+}
+
+.legend-box {
+    width: 12px;
+    height: 12px;
+    margin-right: 8px;
+    display: inline-block;
+    border-radius: 2px;
+}
+
+.legend-line {
+    width: 14px;
+    height: 4px;
+    margin-right: 8px;
+    display: inline-block;
+    border-radius: 2px;
+}
+
+.user-color { background-color: #ff9800; border: 1px solid white; box-shadow: 0 0 4px rgba(255,152,0,0.8); }
+.person-color { background-color: #455a64; opacity: 0.8; }
+.green { background-color: rgba(50, 255, 50, 0.5); }
+.yellow { background-color: rgba(255, 200, 0, 0.5); }
+.red { background-color: rgba(255, 50, 50, 0.6); }
+.gray-dash { background-color: #9e9e9e; border: 1px dashed white; }
+.red-dash { background-color: #d9534f; border: 1px dashed white; }
+.blue { background-color: #007BFF; }
+
+/* Pulse animation for red zone */
+@keyframes pulseRed {
+    0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255, 50, 50, 0.8)); opacity: 0.5; }
+    50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(255, 0, 0, 1)); opacity: 0.8; }
+    100% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255, 50, 50, 0.8)); opacity: 0.5; }
+}
+
+.zone-alert-pulse {
+    animation: pulseRed 1.5s infinite;
+    transform-origin: center;
+}
+
+.zone-alert-text {
+    font-size: 14px;
+    font-weight: bold;
+    fill: #d9534f;
+    text-anchor: middle;
+    pointer-events: none;
+    filter: drop-shadow(0 0 2px white);
+}
 
 /* Make it somewhat responsive */
 @media (max-width: 600px) {
@@ -188,4 +395,8 @@ h1 {
         width: 90%;
         padding: 16px;
     }
+    .legend {
+        display: none; /* Hide on very small screens to save space */
+    }
 }
+
