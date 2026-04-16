@@ -364,7 +364,19 @@ h1 {
 .red-dash { background-color: #d9534f; border: 1px dashed white; }
 .blue { background-color: #007BFF; }
 
-/* Pulse animation for red zone */
+/* Dynamic Click Path Target */
+.target-ping {
+    fill: none;
+    stroke: #2ecc71;
+    stroke-width: 4;
+    animation: ping-pulse 1.2s infinite ease-out;
+}
+@keyframes ping-pulse {
+    0% { r: 6; opacity: 1; stroke-width: 4; }
+    100% { r: 24; opacity: 0; stroke-width: 1; }
+}
+
+/* Pulse effect for selected route path */
 @keyframes pulseRed {
     0% { transform: scale(1); filter: drop-shadow(0 0 5px rgba(255, 50, 50, 0.8)); opacity: 0.5; }
     50% { transform: scale(1.05); filter: drop-shadow(0 0 20px rgba(255, 0, 0, 1)); opacity: 0.8; }
@@ -383,6 +395,26 @@ h1 {
     text-anchor: middle;
     pointer-events: none;
     filter: drop-shadow(0 0 2px white);
+}
+
+.obstacle-rect {
+    fill: #a2aab0;
+    stroke: #7f8c8d;
+    stroke-width: 2;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.15));
+}
+
+.obstacle-label {
+    fill: #fff;
+    font-size: 13px;
+    font-weight: 500;
+    text-anchor: middle;
+    pointer-events: none;
+}
+
+.gray-rock {
+    background-color: #a2aab0;
+    border: 1px solid #7f8c8d;
 }
 
 /* Make it somewhat responsive */

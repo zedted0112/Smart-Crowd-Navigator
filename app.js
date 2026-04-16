@@ -14,6 +14,13 @@ const routes = {
     seat: [nodes.gate, nodes.centerJunction, nodes.seat]
 };
 
+const staticObstacles = [
+    { x: 250, y: 500, w: 100, h: 100, label: "Shop" },
+    { x: 250, y: 200, w: 100, h: 100, label: "Restricted" },
+    { x: 550, y: 150, w: 150, h: 80,  label: "Kiosk" },
+    { x: 550, y: 550, w: 150, h: 80,  label: "Food Stall" }
+];
+
 // Grid Specs
 const CELL_SIZE = 50;
 const COLS = 20; // 1000 / 50
@@ -38,6 +45,7 @@ const manualBlocks = new Set();
 
 function init() {
     initGrid();
+    drawObstacles();
     drawSeats();
     drawGrid();
     drawBackgroundPaths();
@@ -89,11 +97,22 @@ function init() {
         pt.y = e.clientY;
         const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
         
-        const cell = getCell(svgP.x, svgP.y);
-        const key = `${cell.col},${cell.row}`;
-        if (manualBlocks.has(key)) manualBlocks.delete(key);
-        else manualBlocks.add(key);
-        updateGridDensity();
+        if (e.shiftKey) {
+            const cell = getCell(svgP.x, svgP.y);
+            const key = `${cell.col},${cell.row}`;
+            if (manualBlocks.has(key)) manualBlocks.delete(key);
+            else manualBlocks.add(key);
+            updateGridDensity();
+        } else {
+            const clickedNode = { x: svgP.x, y: svgP.y };
+            const snappedNode = snapTargetNode(svgP.x, svgP.y);
+            console.log(`-- Custom Navigation Activated --`);
+            console.log(`Raw Click Coord: [${Math.floor(clickedNode.x)}, ${Math.floor(clickedNode.y)}]`);
+            console.log(`Snapped Node: [${Math.floor(snappedNode.x)}, ${Math.floor(snappedNode.y)}]`);
+            
+            drawTargetPing(snappedNode.x, snappedNode.y);
+            navigateToCustom(snappedNode);
+        }
     });
 
     // Start Simulation Loops
@@ -245,19 +264,97 @@ function drawSeats() {
     }
 }
 
+function drawObstacles() {
+    const layer = document.getElementById('obstacles-layer');
+    if(!layer) return;
+    layer.innerHTML = '';
+    
+    staticObstacles.forEach(obs => {
+        const rect = createSVGElement('rect', {
+            x: obs.x, y: obs.y, width: obs.w, height: obs.h,
+            class: 'obstacle-rect', rx: 4
+        });
+        layer.appendChild(rect);
+        
+        if (obs.label) {
+            const text = createSVGElement('text', {
+                x: obs.x + obs.w / 2, y: obs.y + obs.h / 2 + 5,
+                class: 'obstacle-label'
+            });
+            text.textContent = obs.label;
+            layer.appendChild(text);
+        }
+    });
+}
+
 function drawNodes() {
     const nodeGroup = document.getElementById('nodes');
     nodeGroup.innerHTML = '';
-
+    
+    // Render static specific location hubs
     for (const key in nodes) {
+        if(key === 'centerJunction') continue;
         const n = nodes[key];
-        const g = createSVGElement('g', { class: 'node-group' });
-        g.appendChild(createSVGElement('circle', { cx: n.x, cy: n.y, r: 12, class: 'node-circle' }));
-        const text = createSVGElement('text', { x: n.x, y: n.y - 20, class: 'node-label' });
-        text.textContent = n.label;
-        g.appendChild(text);
-        nodeGroup.appendChild(g);
+        nodeGroup.appendChild(createSVGElement('circle', {
+            cx: n.x, cy: n.y, r: 8, class: 'node-circ'
+        }));
     }
+}
+
+function drawTargetPing(x, y) {
+    let old = document.getElementById('click-target-ping');
+    if (old) old.remove();
+    const svg = document.getElementById('venue-svg');
+    const ping = createSVGElement('circle', {
+        id: 'click-target-ping',
+        cx: x, cy: y, r: 6, class: 'target-ping'
+    });
+    // Insert behind floating menus but securely above the primary arrays
+    svg.insertBefore(ping, document.getElementById('seats-layer'));
+}
+
+function snapTargetNode(px, py) {
+    const segments = [
+        { x1: 150, y1: 400, x2: 450, y2: 400 }, // Gate-Center
+        { x1: 450, y1: 400, x2: 800, y2: 400 }, // Center-Seat
+        { x1: 450, y1: 400, x2: 450, y2: 700 }, // Center-Food
+        { x1: 450, y1: 100, x2: 450, y2: 400 }  // Center-Washroom
+    ];
+    
+    let closestPt = { x: px, y: py, dist: Infinity };
+    
+    segments.forEach(seg => {
+        let isHoriz = seg.y1 === seg.y2;
+        if (isHoriz) {
+            let snapX = Math.max(seg.x1, Math.min(seg.x2, px));
+            let d = Math.hypot(px - snapX, py - seg.y1);
+            if (d < closestPt.dist) closestPt = { x: snapX, y: seg.y1, dist: d };
+        } else {
+            let snapY = Math.max(seg.y1, Math.min(seg.y2, py));
+            let d = Math.hypot(px - seg.x1, py - snapY);
+            if (d < closestPt.dist) closestPt = { x: seg.x1, y: snapY, dist: d };
+        }
+    });
+    
+    return { x: closestPt.x, y: closestPt.y };
+}
+
+function isPointInObstacle(x, y) {
+    for (const obs of staticObstacles) {
+        if (x >= obs.x && x <= obs.x + obs.w &&
+            y >= obs.y && y <= obs.y + obs.h) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function getEdgePenalty(x, y) {
+    let penalty = 0;
+    const margin = 50; 
+    if (x < margin || x > 1000 - margin) penalty += 500;
+    if (y < margin || y > 800 - margin) penalty += 500;
+    return penalty;
 }
 
 // Data-Driven People Logic
@@ -305,6 +402,10 @@ function spawnPerson() {
         // Fallback open space
         startX = Math.random() * 800 + 100; startY = Math.random() * 600 + 100;
     }
+    
+    if (isPointInObstacle(startX, startY)) {
+        return spawnPerson(); // Recursively bounce generation safely out of restricted statics
+    }
 
     const p = {
         id: nextPersonId++,
@@ -351,6 +452,8 @@ function pickTarget(p) {
         p.tx = Math.max(50, Math.min(950, p.x + (Math.random() * 200 - 100)));
         p.ty = Math.max(50, Math.min(750, p.y + (Math.random() * 200 - 100)));
     }
+    
+    if (isPointInObstacle(p.tx, p.ty)) pickTarget(p); // Dodge routing inside walls natively!
 }
 
 function initPeople() {
@@ -563,6 +666,9 @@ function isSegmentBlocked(p1, p2) {
     for (let j = 0; j <= steps; j++) {
         const x = p1.x + (p2.x - p1.x) * (j / steps);
         const y = p1.y + (p2.y - p1.y) * (j / steps);
+        
+        if (isPointInObstacle(x, y)) return true; // Static wall bounds
+        
         const cell = getCell(x, y);
         if (cell.blocked) return true;
     }
@@ -593,6 +699,9 @@ function getLocalDetour(p1, p2) {
 function calculatePathScore(pathArr) {
     let dist = 0;
     let crowd = 0;
+    let edgeCost = 0;
+    let obstacleCost = 0;
+    
     for (let i = 0; i < pathArr.length - 1; i++) {
         let p1 = pathArr[i], p2 = pathArr[i+1];
         dist += Math.hypot(p2.x - p1.x, p2.y - p1.y);
@@ -601,15 +710,20 @@ function calculatePathScore(pathArr) {
         for (let j = 0; j <= steps; j++) {
             const x = p1.x + (p2.x - p1.x) * (j / steps);
             const y = p1.y + (p2.y - p1.y) * (j / steps);
+            
+            if (isPointInObstacle(x, y)) obstacleCost += 5000;
+            edgeCost += getEdgePenalty(x, y);
+            
             const cell = getCell(x, y);
             crowd += cell.count;
-            if (manualBlocks.has(`${cell.col},${cell.row}`)) crowd += 20; // extreme density block penalty
+            if (manualBlocks.has(`${cell.col},${cell.row}`)) crowd += 20; 
         }
     }
     crowd = Math.floor(crowd / 8);
+    edgeCost = Math.floor(edgeCost / 8);
     const turns = Math.max(0, pathArr.length - 2);
     
-    return dist * 1 + crowd * 50 + turns * 200;
+    return dist * 1 + crowd * 50 + turns * 200 + edgeCost + obstacleCost;
 }
 
 function calculateSafeRoute(baseRoute) {
@@ -628,13 +742,14 @@ function calculateSafeRoute(baseRoute) {
     }
     if (localPath.length === baseRoute.length) localPath = baseRoute; 
     let localScore = calculatePathScore(localPath);
-    if (localPath !== baseRoute) localScore -= 50; // innate bonus for choosing short deviations
+    if (localPath !== baseRoute) localScore -= 50; 
 
     const dest = baseRoute[baseRoute.length-1];
     let fullPath = [];
-    if (dest.y >= 650) fullPath = [baseRoute[0], { x: 150, y: 700 }, nodes.food];
-    else if (dest.y <= 150 && dest.x <= 500) fullPath = [baseRoute[0], { x: 150, y: 100 }, nodes.washroom];
-    else fullPath = [baseRoute[0], { x: 450, y: 100 }, { x: 800, y: 100 }, nodes.seat];
+    if (dest.y >= 450) fullPath = [baseRoute[0], { x: 150, y: 700 }, { x: dest.x, y: 700 }, dest];
+    else if (dest.y <= 350 && dest.x <= 500) fullPath = [baseRoute[0], { x: 150, y: 100 }, { x: dest.x, y: 100 }, dest];
+    else fullPath = [baseRoute[0], { x: 450, y: 100 }, { x: 800, y: 100 }, { x: 800, y: dest.y }, dest];
+    
     let fullScore = calculatePathScore(fullPath);
 
     console.log(`-- Route Synthesis --`);
@@ -675,6 +790,60 @@ function redrawActiveLines() {
         origGroup.appendChild(createSVGElement('path', { d: pathArrayToString(currentlyBlockedLine), class: 'path-blocked' }));
     }
     optGroup.appendChild(createSVGElement('path', { d: pathArrayToString(userAvatar.path), class: 'path-optimized' }));
+}
+
+function navigateToCustom(snappedDestNode) {
+    currentDestination = 'custom';
+    const startPoint = (userAvatar.active && !userAvatar.isPaused) ? { x: userAvatar.x, y: userAvatar.y } : nodes.gate;
+    
+    // Build explicit synthetic vector strictly mapped to Center Hub bounding
+    let customNodes = [startPoint];
+    const isOnSameXAxis = startPoint.x === snappedDestNode.x && startPoint.x === nodes.centerJunction.x;
+    const isOnSameYAxis = startPoint.y === snappedDestNode.y && startPoint.y === nodes.centerJunction.y;
+    
+    if (!isOnSameXAxis && !isOnSameYAxis) {
+        customNodes.push(nodes.centerJunction);
+    }
+    
+    customNodes.push(snappedDestNode);
+
+    // Purge and launch precisely identically to static node navigation tracking
+    const existingAvatar = document.getElementById('user-avatar-dot');
+    if (existingAvatar) existingAvatar.remove();
+    
+    const result = calculateSafeRoute(customNodes);
+    currentlyBlockedLine = result.blockedLine;
+    activeOptimizedPath = result.path;
+    
+    DETOUR_MODE = result.type;
+    const selectMode = document.getElementById('ctrl-detour-mode');
+    if(selectMode && result.type !== 'primary') selectMode.value = result.type;
+
+    userAvatar.x = startPoint.x;
+    userAvatar.y = startPoint.y;
+    userAvatar.path = activeOptimizedPath;
+    userAvatar.targetIndex = 1;
+    userAvatar.active = true;
+    userAvatar.isPaused = false;
+
+    redrawActiveLines();
+    evalAnalytics();
+    
+    document.getElementById('route-info').style.display = 'block';
+    
+    const alertEl = document.getElementById('info-alert');
+    const congestionEl = document.getElementById('info-congestion');
+    if (currentlyBlockedLine) {
+        congestionEl.className = 'alert-text alert-red';
+        congestionEl.innerText = "High Congestion Detected";
+        alertEl.style.display = 'block';
+        alertEl.className = 'alert-text alert-blue';
+        alertEl.innerText = result.type === 'full' ? "Taking full alternate safe route" : "Taking local detour to avoid congestion";
+    } else {
+        congestionEl.className = 'alert-text alert-green';
+        congestionEl.innerText = "Path Clear";
+        alertEl.style.display = 'none';
+    }
 }
 
 function navigateTo(destKey) {
