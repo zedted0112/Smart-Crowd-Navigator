@@ -733,19 +733,21 @@ function updateGridDensity() {
     }
 
     // Mid-journey dynamic localized routing and waiting evaluation
-    if (gridChanged && userAvatar.active && (!userAvatar.isPaused || userAvatar.state === 'WAITING')) {
+    if (userAvatar.active && (!userAvatar.isPaused || userAvatar.state === 'WAITING')) {
         if (!SMART_ROUTING_ENABLED) { 
             userAvatar.isPaused = false; 
             return; 
         }
         
+        // 5. COOLDOWN: Prevent rapid re-triggering of states
         if (userAvatar.cooldownTicks > 0) {
             userAvatar.cooldownTicks--;
-            return; // Enforce cooldown lock logically suppressing oscillations!
+            return;
         }
         
+        // Skip re-evaluation during high-commitment states
         if (userAvatar.state === 'DETOURING' || userAvatar.state === 'MOVING_FINAL' || userAvatar.state === 'PUSHING') {
-            return; // Absolute commitment completely traversing structural detour box geometries or ending vectors natively!
+            return;
         }
 
         const currentPosNode = { x: userAvatar.x, y: userAvatar.y };
@@ -754,78 +756,77 @@ function updateGridDensity() {
             const isBlocked = isSegmentBlocked(currentPosNode, targetNode);
             
             if (isBlocked) {
-                const isHard = isSegmentHardBlocked(currentPosNode, targetNode);
-                
-                if (!isHard && userAvatar.waitTicks < 2) {
-                    userAvatar.isPaused = true;
+                // 1. REMOVE BOUNCE: Stop movement completely
+                userAvatar.isPaused = true;
+                currentlyBlockedLine = [currentPosNode, targetNode];
+
+                // 2. ADD TRUE WAIT STATE: 1-2 second delay
+                if (userAvatar.state !== 'WAITING') {
                     userAvatar.state = 'WAITING';
-                    userAvatar.waitTicks++;
-                    currentlyBlockedLine = [currentPosNode, targetNode];
-                    
+                    userAvatar.waitTicks = 1; // Mark that we are in the first wait cycle
+
+                    // 3. VISUAL FEEDBACK: Pulse and message
                     const el = document.getElementById('user-avatar-dot');
                     if(el) el.classList.add('avatar-waiting');
                     
                     const congestionEl = document.getElementById('info-congestion');
                     const alertEl = document.getElementById('info-alert');
                     congestionEl.className = 'alert-text alert-red';
-                    congestionEl.innerText = "Temporary Congestion";
+                    congestionEl.innerText = "Congestion Ahead";
                     alertEl.style.display = 'block';
                     alertEl.className = 'alert-text alert-blue';
                     alertEl.innerText = "Waiting for congestion to clear";
                     
-                    return; // Hold until next grid evaluation natively
+                    redrawActiveLines();
+                    return;
                 }
 
-                // Wait timed out or Hard Block hit!
-                userAvatar.waitTicks = 0;
-                userAvatar.state = 'MOVING';
-                userAvatar.isPaused = true;
-                
-                const el = document.getElementById('user-avatar-dot');
-                if(el) el.classList.remove('avatar-waiting');
-                currentlyBlockedLine = [currentPosNode, targetNode];
+                // 4. DECISION AFTER WAIT: If still blocked after 1 cycle, trigger detour
+                if (userAvatar.waitTicks > 0) {
+                    userAvatar.waitTicks = 0;
+                    userAvatar.state = 'MOVING';
+                    
+                    const el = document.getElementById('user-avatar-dot');
+                    if(el) el.classList.remove('avatar-waiting');
 
-                setTimeout(() => {
+                    // Calculate detour immediately
                     const routeSubslice = [currentPosNode, ...userAvatar.path.slice(userAvatar.targetIndex)];
                     const result = calculateSafeRoute(routeSubslice);
                     
                     userAvatar.path = result.path;
                     activeOptimizedPath = userAvatar.path;
-                    userAvatar.targetIndex = 1; // Since current point is [0] explicitly
+                    userAvatar.targetIndex = 1;
                     
                     DETOUR_MODE = result.type;
-                    if (result.type !== 'primary') {
-                        userAvatar.state = 'DETOURING';
-                        userAvatar.cooldownTicks = 1; 
-                    } else {
-                        userAvatar.state = 'PUSHING';
-                        userAvatar.cooldownTicks = 1; 
-                        const el = document.getElementById('user-avatar-dot');
-                        if (el) el.classList.add('avatar-pushing');
+                    userAvatar.state = (result.type !== 'primary') ? 'DETOURING' : 'PUSHING';
+                    userAvatar.cooldownTicks = 1; // 2s cooldown after decision
+
+                    if (userAvatar.state === 'PUSHING') {
+                        const elPush = document.getElementById('user-avatar-dot');
+                        if (elPush) elPush.classList.add('avatar-pushing');
                     }
+
                     const selectMode = document.getElementById('ctrl-detour-mode');
                     if(selectMode && result.type !== 'primary') selectMode.value = result.type;
 
                     redrawActiveLines();
                     evalAnalytics();
 
-                    const congestionEl = document.getElementById('info-congestion');
                     const alertEl = document.getElementById('info-alert');
-                    congestionEl.className = 'alert-text alert-red';
-                    congestionEl.innerText = "High Congestion Detected";
                     alertEl.style.display = 'block';
                     alertEl.className = 'alert-text alert-blue';
-                    if (result.type === 'primary') alertEl.innerText = "Pushing carefully through main route";
-                    else alertEl.innerText = result.type === 'full' ? "Taking full alternate safe route" : "Taking local detour to avoid area";
+                    if (result.type === 'primary') alertEl.innerText = "Pushing through main route";
+                    else alertEl.innerText = "Taking detour to avoid congestion";
 
                     userAvatar.isPaused = false; 
-                }, 400);
+                }
             } else if (userAvatar.state === 'WAITING') {
-                // Resolved natively by crowd moving!
+                // Resolved naturally: Path cleared before wait ended
                 userAvatar.state = 'MOVING';
                 userAvatar.waitTicks = 0;
                 userAvatar.isPaused = false;
                 currentlyBlockedLine = null;
+                userAvatar.cooldownTicks = 1; // Short cooldown after resuming
 
                 const el = document.getElementById('user-avatar-dot');
                 if(el) el.classList.remove('avatar-waiting');
@@ -836,12 +837,10 @@ function updateGridDensity() {
                 congestionEl.innerText = "Path Cleared";
                 alertEl.style.display = 'block';
                 alertEl.className = 'alert-text alert-green';
-                alertEl.innerText = "Resuming route smoothly!";
+                alertEl.innerText = "Resuming journey";
 
                 redrawActiveLines();
-                evalAnalytics();
-                
-                setTimeout(()=> { if(userAvatar.state !== 'WAITING' && userAvatar.state !== 'DETOURING') alertEl.style.display = 'none'; }, 2000);
+                setTimeout(()=> { if(userAvatar.state !== 'WAITING') alertEl.style.display = 'none'; }, 2000);
             }
         }
     }
