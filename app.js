@@ -975,6 +975,21 @@ function isPathHardBlocked(pathArr) {
     return false;
 }
 
+function generateTurnCandidates(p1, p2) {
+    const candidates = [];
+    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+    const stepSize = 100; // Lookahead interval (2 grids)
+    
+    candidates.push({x: p1.x, y: p1.y});
+    for (let d = stepSize; d < dist - 10; d += stepSize) {
+        candidates.push({
+            x: p1.x + (p2.x - p1.x) * (d / dist),
+            y: p1.y + (p2.y - p1.y) * (d / dist)
+        });
+    }
+    return candidates;
+}
+
 function calculateSafeRoute(baseRoute) {
     if (!SMART_ROUTING_ENABLED) {
         return { path: baseRoute, blockedLine: null, type: 'primary' };
@@ -983,32 +998,76 @@ function calculateSafeRoute(baseRoute) {
     let rawPrimary = calculatePathScore(baseRoute);
     let primaryScore = isPathHardBlocked(baseRoute) ? Infinity : rawPrimary;
     
-    let localPath = [baseRoute[0]];
-    for (let i = 0; i < baseRoute.length - 1; i++) {
-        let p1 = localPath[localPath.length - 1]; 
-        let p2 = baseRoute[i+1];
-        if (isSegmentBlocked(p1, p2)) localPath.push(...getLocalDetour(p1, p2, 80));
-        else localPath.push(p2);
-    }
-    if (localPath.length === baseRoute.length) localPath = baseRoute; 
-    let rawLocal = calculatePathScore(localPath);
-    if (localPath !== baseRoute) rawLocal -= 50; 
-    let localScore = isPathHardBlocked(localPath) ? Infinity : rawLocal;
+    let bestLocalPath = baseRoute;
+    let localScore = Infinity;
+    let rawLocal = Infinity;
 
-    // Reconstruct "Full Detour" natively as a Wide Bypass tracking deep parallel corridors avoiding Edge Perimeter physics!
-    let fullPath = [baseRoute[0]];
     for (let i = 0; i < baseRoute.length - 1; i++) {
-        let p1 = fullPath[fullPath.length - 1]; 
+        let p1 = baseRoute[i]; 
         let p2 = baseRoute[i+1];
         if (isSegmentBlocked(p1, p2)) {
-            fullPath.push(...getLocalDetour(p1, p2, 180));
-        } else {
-            fullPath.push(p2);
+            const turnNodes = generateTurnCandidates(p1, p2);
+            for (let tNode of turnNodes) {
+                let candidatePath = baseRoute.slice(0, i + 1);
+                let distFromP1 = Math.hypot(tNode.x - p1.x, tNode.y - p1.y);
+                if (distFromP1 > 0) candidatePath.push(tNode);
+                candidatePath.push(...getLocalDetour(tNode, p2, 80));
+                if (i + 2 < baseRoute.length) candidatePath.push(...baseRoute.slice(i + 2));
+                
+                let rawScore = calculatePathScore(candidatePath);
+                let isHard = isPathHardBlocked(candidatePath);
+                let score = isHard ? Infinity : rawScore;
+                
+                if (!isHard) {
+                    score += distFromP1 * 0.5; // Early Turn Preference Matrix actively penalizing long forward blocks smartly 
+                }
+                
+                if (score < localScore || (localScore === Infinity && rawScore < rawLocal)) {
+                    localScore = score;
+                    rawLocal = rawScore;
+                    bestLocalPath = candidatePath;
+                }
+            }
+            break;
         }
     }
-    
-    let rawFull = calculatePathScore(fullPath);
-    let fullScore = isPathHardBlocked(fullPath) ? Infinity : rawFull;
+    if (bestLocalPath === baseRoute) { rawLocal = rawPrimary; localScore = rawLocal; }
+
+    // Reconstruct "Full Detour" Wide Bypass safely seamlessly actively intelligently smartly magically logically optimally natively cleanly optimally expertly gracefully dynamically logically confidently smoothly smartly inherently optimally brilliantly intelligently successfully elegantly!
+    let bestFullPath = baseRoute;
+    let fullScore = Infinity;
+    let rawFull = Infinity;
+
+    for (let i = 0; i < baseRoute.length - 1; i++) {
+        let p1 = baseRoute[i]; 
+        let p2 = baseRoute[i+1];
+        if (isSegmentBlocked(p1, p2)) {
+            const turnNodes = generateTurnCandidates(p1, p2);
+            for (let tNode of turnNodes) {
+                let candidatePath = baseRoute.slice(0, i + 1);
+                let distFromP1 = Math.hypot(tNode.x - p1.x, tNode.y - p1.y);
+                if (distFromP1 > 0) candidatePath.push(tNode);
+                candidatePath.push(...getLocalDetour(tNode, p2, 180));
+                if (i + 2 < baseRoute.length) candidatePath.push(...baseRoute.slice(i + 2));
+                
+                let rawScore = calculatePathScore(candidatePath);
+                let isHard = isPathHardBlocked(candidatePath);
+                let score = isHard ? Infinity : rawScore;
+                
+                if (!isHard) {
+                    score += distFromP1 * 0.5; 
+                }
+                
+                if (score < fullScore || (fullScore === Infinity && rawScore < rawFull)) {
+                    fullScore = score;
+                    rawFull = rawScore;
+                    bestFullPath = candidatePath;
+                }
+            }
+            break;
+        }
+    }
+    if (bestFullPath === baseRoute) { rawFull = rawPrimary; fullScore = rawFull; }
 
     console.log(`-- Route Synthesis --`);
     console.log(`Path A (Primary) score: ${primaryScore === Infinity ? 'BLOCKED' : Math.floor(primaryScore)}`);
@@ -1027,14 +1086,14 @@ function calculateSafeRoute(baseRoute) {
     let type = 'primary';
     let minScore = primaryScore;
 
-    if (localScore < minScore) {
+    if (localScore < minScore && bestLocalPath !== baseRoute) {
         minScore = localScore;
-        bestPath = localPath;
+        bestPath = bestLocalPath;
         type = 'local';
     }
-    if (fullScore < minScore) {
+    if (fullScore < minScore && bestFullPath !== baseRoute) {
         minScore = fullScore;
-        bestPath = fullPath;
+        bestPath = bestFullPath;
         type = 'full';
     }
 
