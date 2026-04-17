@@ -90,6 +90,61 @@ function init() {
     
     document.getElementById('btn-reset').addEventListener('click', resetSimulation);
 
+    let isDraggingFriend = false;
+    let friendWasDragged = false;
+
+    svg.addEventListener('mousedown', (e) => {
+        if (!document.getElementById('friend-avatar-dot')) return;
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+        
+        let dist = Math.hypot(svgP.x - friendAvatar.x, svgP.y - friendAvatar.y);
+        if (dist <= 25) { 
+            isDraggingFriend = true;
+            friendWasDragged = false;
+            document.getElementById('friend-avatar-dot').style.cursor = 'grabbing';
+            e.stopPropagation();
+        }
+    });
+
+    svg.addEventListener('mousemove', (e) => {
+        if (isDraggingFriend) {
+            const pt = svg.createSVGPoint();
+            pt.x = e.clientX; pt.y = e.clientY;
+            const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+            
+            friendAvatar.x = Math.max(20, Math.min(980, svgP.x)); 
+            friendAvatar.y = Math.max(20, Math.min(780, svgP.y));
+            friendWasDragged = true;
+            
+            const fEl = document.getElementById('friend-avatar-dot');
+            if (fEl) {
+                fEl.setAttribute('cx', friendAvatar.x);
+                fEl.setAttribute('cy', friendAvatar.y);
+            }
+            drawTargetPing(friendAvatar.x, friendAvatar.y);
+            
+            if (userAvatar.state === 'MOVING_FINAL' || currentDestination === 'friend') {
+                redrawActiveLines();
+            }
+        }
+    });
+
+    svg.addEventListener('mouseup', () => {
+        if (isDraggingFriend) {
+            isDraggingFriend = false;
+            document.getElementById('friend-avatar-dot').style.cursor = 'grab';
+            
+            const snappedFriend = snapTargetNode(friendAvatar.x, friendAvatar.y);
+            navigateToCustom(snappedFriend, friendAvatar);
+            friendAvatar.routeSnapshotX = friendAvatar.x;
+            friendAvatar.routeSnapshotY = friendAvatar.y;
+            
+            setTimeout(() => friendWasDragged = false, 100);
+        }
+    });
+
     // Map Interactivity for manual congestion
     svg.addEventListener('click', (e) => {
         const pt = svg.createSVGPoint();
@@ -97,6 +152,8 @@ function init() {
         pt.y = e.clientY;
         const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
         
+        if (friendWasDragged) return;
+
         if (e.shiftKey) {
             const cell = getCell(svgP.x, svgP.y);
             const key = `${cell.col},${cell.row}`;
@@ -104,14 +161,20 @@ function init() {
             else manualBlocks.add(key);
             updateGridDensity();
         } else {
+            const friendDist = Math.hypot(svgP.x - friendAvatar.x, svgP.y - friendAvatar.y);
+            if (friendDist < 30) {
+                navigateToFriend();
+                return;
+            }
+
             const clickedNode = { x: svgP.x, y: svgP.y };
             const snappedNode = snapTargetNode(svgP.x, svgP.y);
             console.log(`-- Custom Navigation Activated --`);
             console.log(`Raw Click Coord: [${Math.floor(clickedNode.x)}, ${Math.floor(clickedNode.y)}]`);
             console.log(`Snapped Node: [${Math.floor(snappedNode.x)}, ${Math.floor(snappedNode.y)}]`);
             
-            drawTargetPing(snappedNode.x, snappedNode.y);
-            navigateToCustom(snappedNode);
+            drawTargetPing(clickedNode.x, clickedNode.y); // Dynamically render exactly on the user's specific target!
+            navigateToCustom(snappedNode, clickedNode);
         }
     });
 
@@ -156,6 +219,11 @@ function resetSimulation() {
     const existingAvatar = document.getElementById('user-avatar-dot');
     if (existingAvatar) existingAvatar.remove();
     userAvatar.active = false;
+    userAvatar.isPaused = false;
+    userAvatar.state = 'MOVING';
+    userAvatar.waitTicks = 0;
+    userAvatar.cooldownTicks = 0;
+    userAvatar.finalDestination = null;
     currentDestination = null;
     activeOptimizedPath = [];
     currentlyBlockedLine = null;
@@ -368,9 +436,50 @@ let userAvatar = {
     y: 400,
     path: [],
     targetIndex: 0,
-    speed: 0.8, // Slightly faster than people
-    isPaused: false
+    speed: 0.8, 
+    isPaused: false,
+    state: 'MOVING', 
+    waitTicks: 0,
+    cooldownTicks: 0,
+    finalDestination: null
 };
+
+// Friend wandering entity
+let friendAvatar = {
+    x: 750,
+    y: 200,
+    tx: 750,
+    ty: 200,
+    speed: 0.05,
+    routeSnapshotX: null,
+    routeSnapshotY: null
+};
+
+function navigateToFriend() {
+    console.log("-- Friend Target Activated via UI --");
+    
+    let fEl = document.getElementById('friend-avatar-dot');
+    if (!fEl) {
+        fEl = createSVGElement('circle', {
+            id: 'friend-avatar-dot', r: 10, class: 'friend-dot',
+            style: 'cursor: grab;'
+        });
+        document.getElementById('user-layer').appendChild(fEl);
+    }
+    fEl.setAttribute('cx', friendAvatar.x);
+    fEl.setAttribute('cy', friendAvatar.y);
+
+    const snappedFriend = snapTargetNode(friendAvatar.x, friendAvatar.y);
+    drawTargetPing(friendAvatar.x, friendAvatar.y);
+    navigateToCustom(snappedFriend, friendAvatar);
+    
+    // Lock snapshots to natively evaluate dynamically later!
+    friendAvatar.routeSnapshotX = friendAvatar.x;
+    friendAvatar.routeSnapshotY = friendAvatar.y;
+    currentDestination = 'friend';
+    document.getElementById('info-dest').innerText = 'Friend';
+    document.getElementById('route-info').style.display = 'block';
+}
 
 function spawnPerson() {
     let startX = 0;
@@ -487,9 +596,26 @@ function animatePeople() {
         }
     });
     
-    // Animate User Avatar
-    if (userAvatar.active && !userAvatar.isPaused && userAvatar.path.length > 0) {
-        if (userAvatar.targetIndex < userAvatar.path.length) {
+    // Animate User Avatar strictly tracking dual-states logically bypassing math rules when finishing endpoints
+    if (userAvatar.active && !userAvatar.isPaused) {
+        if (userAvatar.state === 'MOVING_FINAL' && userAvatar.finalDestination) {
+            const dx = userAvatar.finalDestination.x - userAvatar.x;
+            const dy = userAvatar.finalDestination.y - userAvatar.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 4) {
+                userAvatar.x = userAvatar.finalDestination.x;
+                userAvatar.y = userAvatar.finalDestination.y;
+                userAvatar.active = false;
+                userAvatar.finalDestination = null;
+                const uEl = document.getElementById('user-avatar-dot');
+                if (uEl) uEl.remove();
+            } else {
+                userAvatar.x += (dx / dist) * userAvatar.speed * SPEED_MULTIPLIER;
+                userAvatar.y += (dy / dist) * userAvatar.speed * SPEED_MULTIPLIER;
+            }
+        } 
+        else if (userAvatar.path.length > 0 && userAvatar.targetIndex < userAvatar.path.length) {
             const targetNode = userAvatar.path[userAvatar.targetIndex];
             const dx = targetNode.x - userAvatar.x;
             const dy = targetNode.y - userAvatar.y;
@@ -499,27 +625,50 @@ function animatePeople() {
                 userAvatar.x = targetNode.x;
                 userAvatar.y = targetNode.y;
                 userAvatar.targetIndex++;
+                
+                if (userAvatar.state === 'DETOURING' || userAvatar.state === 'PUSHING') {
+                    const isCorridor = (targetNode.x === 150 || targetNode.x === 450 || targetNode.x === 800) || 
+                                       (targetNode.y === 100 || targetNode.y === 400 || targetNode.y === 700);
+                    if (userAvatar.state === 'PUSHING' || isCorridor) {
+                        userAvatar.state = 'MOVING';
+                        userAvatar.cooldownTicks = 1; 
+                        const el = document.getElementById('user-avatar-dot');
+                        if (el) el.classList.remove('avatar-pushing');
+                    }
+                }
+
                 if (userAvatar.targetIndex >= userAvatar.path.length) {
-                    userAvatar.active = false;
-                    const uEl = document.getElementById('user-avatar-dot');
-                    if (uEl) uEl.remove();
+                    if (userAvatar.finalDestination) {
+                        const distToFinal = Math.hypot(userAvatar.finalDestination.x - userAvatar.x, userAvatar.finalDestination.y - userAvatar.y);
+                        if (distToFinal > 4) {
+                            userAvatar.state = 'MOVING_FINAL';
+                        } else {
+                            userAvatar.active = false;
+                            const uEl = document.getElementById('user-avatar-dot');
+                            if (uEl) uEl.remove();
+                        }
+                    } else {
+                        userAvatar.active = false;
+                        const uEl = document.getElementById('user-avatar-dot');
+                        if (uEl) uEl.remove();
+                    }
                 }
             } else {
                 userAvatar.x += (dx / dist) * userAvatar.speed * SPEED_MULTIPLIER;
                 userAvatar.y += (dy / dist) * userAvatar.speed * SPEED_MULTIPLIER;
             }
-            
-            if (userAvatar.active) {
-                let uEl = document.getElementById('user-avatar-dot');
-                if (!uEl) {
-                    uEl = createSVGElement('circle', {
-                        id: 'user-avatar-dot', r: 8, class: 'user-dot'
-                    });
-                    document.getElementById('user-layer').appendChild(uEl);
-                }
-                uEl.setAttribute('cx', userAvatar.x);
-                uEl.setAttribute('cy', userAvatar.y);
+        }
+
+        if (userAvatar.active) {
+            let uEl = document.getElementById('user-avatar-dot');
+            if (!uEl) {
+                uEl = createSVGElement('circle', {
+                    id: 'user-avatar-dot', r: 8, class: 'user-dot'
+                });
+                document.getElementById('user-layer').appendChild(uEl);
             }
+            uEl.setAttribute('cx', userAvatar.x);
+            uEl.setAttribute('cy', userAvatar.y);
         }
     }
 
@@ -568,32 +717,90 @@ function updateGridDensity() {
 
     evalAnalytics();
 
-    // Mid-journey dynamic localized reroute evaluation
-    if (gridChanged && currentDestination && userAvatar.active && !userAvatar.isPaused) {
-        if (!SMART_ROUTING_ENABLED) return; // Do not recalculate if stupid mode explicitly forced
+    // Friend Dynamic Drift Tracking natively explicitly seamlessly flawlessly!
+    if (userAvatar.active && currentDestination === 'friend' && friendAvatar.routeSnapshotX !== null) {
+        let driftDist = Math.hypot(friendAvatar.x - friendAvatar.routeSnapshotX, friendAvatar.y - friendAvatar.routeSnapshotY);
+        if (driftDist > 40) {
+            console.log("Friend drifted out of bounds logically! Re-routing dynamically natively!");
+            const snappedFriend = snapTargetNode(friendAvatar.x, friendAvatar.y);
+            navigateToCustom(snappedFriend, friendAvatar);
+            friendAvatar.routeSnapshotX = friendAvatar.x;
+            friendAvatar.routeSnapshotY = friendAvatar.y;
+            return;
+        }
+    }
 
-        // Reevaluate strictly the immediate forward segment the avatar is on
+    // Mid-journey dynamic localized routing and waiting evaluation
+    if (gridChanged && userAvatar.active && (!userAvatar.isPaused || userAvatar.state === 'WAITING')) {
+        if (!SMART_ROUTING_ENABLED) { 
+            userAvatar.isPaused = false; 
+            return; 
+        }
+        
+        if (userAvatar.cooldownTicks > 0) {
+            userAvatar.cooldownTicks--;
+            return; // Enforce cooldown lock logically suppressing oscillations!
+        }
+        
+        if (userAvatar.state === 'DETOURING' || userAvatar.state === 'MOVING_FINAL' || userAvatar.state === 'PUSHING') {
+            return; // Absolute commitment completely traversing structural detour box geometries or ending vectors natively!
+        }
+
         const currentPosNode = { x: userAvatar.x, y: userAvatar.y };
         if (userAvatar.targetIndex < userAvatar.path.length) {
             const targetNode = userAvatar.path[userAvatar.targetIndex];
+            const isBlocked = isSegmentBlocked(currentPosNode, targetNode);
             
-            if (isSegmentBlocked(currentPosNode, targetNode)) {
+            if (isBlocked) {
+                const isHard = isSegmentHardBlocked(currentPosNode, targetNode);
                 
+                if (!isHard && userAvatar.waitTicks < 2) {
+                    userAvatar.isPaused = true;
+                    userAvatar.state = 'WAITING';
+                    userAvatar.waitTicks++;
+                    currentlyBlockedLine = [currentPosNode, targetNode];
+                    
+                    const el = document.getElementById('user-avatar-dot');
+                    if(el) el.classList.add('avatar-waiting');
+                    
+                    const congestionEl = document.getElementById('info-congestion');
+                    const alertEl = document.getElementById('info-alert');
+                    congestionEl.className = 'alert-text alert-red';
+                    congestionEl.innerText = "Temporary Congestion";
+                    alertEl.style.display = 'block';
+                    alertEl.className = 'alert-text alert-blue';
+                    alertEl.innerText = "Waiting for congestion to clear";
+                    
+                    return; // Hold until next grid evaluation natively
+                }
+
+                // Wait timed out or Hard Block hit!
+                userAvatar.waitTicks = 0;
+                userAvatar.state = 'MOVING';
                 userAvatar.isPaused = true;
-                currentlyBlockedLine = [currentPosNode, targetNode];
                 
-                // UX constraint: 800ms delay to visually communicate thinking process
+                const el = document.getElementById('user-avatar-dot');
+                if(el) el.classList.remove('avatar-waiting');
+                currentlyBlockedLine = [currentPosNode, targetNode];
+
                 setTimeout(() => {
-                    // Generate complete vectors backwards natively and pick mathematically
-                    const destArr = routes[currentDestination];
-                    const routeSubslice = [currentPosNode, ...destArr.slice(1)];
+                    const routeSubslice = [currentPosNode, ...userAvatar.path.slice(userAvatar.targetIndex)];
                     const result = calculateSafeRoute(routeSubslice);
                     
                     userAvatar.path = result.path;
                     activeOptimizedPath = userAvatar.path;
+                    userAvatar.targetIndex = 1; // Since current point is [0] explicitly
                     
-                    // Sync Detour Mode logic
                     DETOUR_MODE = result.type;
+                    if (result.type !== 'primary') {
+                        userAvatar.state = 'DETOURING';
+                        userAvatar.cooldownTicks = 1; 
+                    } else {
+                        userAvatar.state = 'PUSHING';
+                        userAvatar.cooldownTicks = 1; 
+                        const el = document.getElementById('user-avatar-dot');
+                        if (el) el.classList.add('avatar-pushing');
+                    }
                     const selectMode = document.getElementById('ctrl-detour-mode');
                     if(selectMode && result.type !== 'primary') selectMode.value = result.type;
 
@@ -606,10 +813,33 @@ function updateGridDensity() {
                     congestionEl.innerText = "High Congestion Detected";
                     alertEl.style.display = 'block';
                     alertEl.className = 'alert-text alert-blue';
-                    alertEl.innerText = result.type === 'full' ? "Taking full alternate safe route" : "Taking local detour to avoid congestion";
+                    if (result.type === 'primary') alertEl.innerText = "Pushing carefully through main route";
+                    else alertEl.innerText = result.type === 'full' ? "Taking full alternate safe route" : "Taking local detour to avoid area";
 
                     userAvatar.isPaused = false; 
-                }, 800);
+                }, 400);
+            } else if (userAvatar.state === 'WAITING') {
+                // Resolved natively by crowd moving!
+                userAvatar.state = 'MOVING';
+                userAvatar.waitTicks = 0;
+                userAvatar.isPaused = false;
+                currentlyBlockedLine = null;
+
+                const el = document.getElementById('user-avatar-dot');
+                if(el) el.classList.remove('avatar-waiting');
+                
+                const congestionEl = document.getElementById('info-congestion');
+                const alertEl = document.getElementById('info-alert');
+                congestionEl.className = 'alert-text alert-green';
+                congestionEl.innerText = "Path Cleared";
+                alertEl.style.display = 'block';
+                alertEl.className = 'alert-text alert-green';
+                alertEl.innerText = "Resuming route smoothly!";
+
+                redrawActiveLines();
+                evalAnalytics();
+                
+                setTimeout(()=> { if(userAvatar.state !== 'WAITING' && userAvatar.state !== 'DETOURING') alertEl.style.display = 'none'; }, 2000);
             }
         }
     }
@@ -660,6 +890,20 @@ function setScenario(scenario) {
 }
 
 // Path Verification against Grid
+function isSegmentHardBlocked(p1, p2) {
+    const steps = Math.max(10, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
+    if (steps <= 0) return false;
+    for (let j = 0; j <= steps; j++) {
+        const x = p1.x + (p2.x - p1.x) * (j / steps);
+        const y = p1.y + (p2.y - p1.y) * (j / steps);
+        if (isPointInObstacle(x, y)) return true;
+        
+        const cell = getCell(x, y);
+        if (manualBlocks.has(`${cell.col},${cell.row}`)) return true; 
+    }
+    return false;
+}
+
 function isSegmentBlocked(p1, p2) {
     const steps = Math.max(10, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
     if (steps <= 0) return false;
@@ -675,24 +919,20 @@ function isSegmentBlocked(p1, p2) {
     return false;
 }
 
-function getLocalDetour(p1, p2) {
+function getLocalDetour(p1, p2, offset = 100) {
     const detour = [];
     const isHorizontal = Math.abs(p1.x - p2.x) > Math.abs(p1.y - p2.y);
-    const offset = 125; // Standard clearance orthogonal band
     
     if (isHorizontal) {
-        let safeY = p1.y - offset;
-        // Keep clear naturally on screen bounded dimensions natively
-        detour.push({x: p1.x, y: safeY});
-        detour.push({x: p2.x, y: safeY});
+        let yOffset = p1.y < 400 ? offset : -offset;
+        detour.push({x: p1.x, y: p1.y + yOffset});
+        detour.push({x: p2.x, y: p2.y + yOffset});
     } else {
-        let safeX = p1.x - offset;
-        if (p1.x > 600) safeX = p1.x - offset; 
-        else if (p1.x < 300) safeX = p1.x + offset;
-        detour.push({x: safeX, y: p1.y});
-        detour.push({x: safeX, y: p2.y});
+        let xOffset = p1.x < 500 ? offset : -offset;
+        detour.push({x: p1.x + xOffset, y: p1.y});
+        detour.push({x: p2.x + xOffset, y: p2.y});
     }
-    detour.push({x: p2.x, y: p2.y}); // Bind target
+    detour.push({x: p2.x, y: p2.y}); 
     return detour;
 }
 
@@ -721,9 +961,18 @@ function calculatePathScore(pathArr) {
     }
     crowd = Math.floor(crowd / 8);
     edgeCost = Math.floor(edgeCost / 8);
+    
+    // Penalize boundary tracking mathematically heavily removing Edge Hugging!
     const turns = Math.max(0, pathArr.length - 2);
     
     return dist * 1 + crowd * 50 + turns * 200 + edgeCost + obstacleCost;
+}
+
+function isPathHardBlocked(pathArr) {
+    for (let i = 0; i < pathArr.length - 1; i++) {
+        if (isSegmentBlocked(pathArr[i], pathArr[i+1])) return true;
+    }
+    return false;
 }
 
 function calculateSafeRoute(baseRoute) {
@@ -731,31 +980,48 @@ function calculateSafeRoute(baseRoute) {
         return { path: baseRoute, blockedLine: null, type: 'primary' };
     }
     
-    let primaryScore = calculatePathScore(baseRoute);
+    let rawPrimary = calculatePathScore(baseRoute);
+    let primaryScore = isPathHardBlocked(baseRoute) ? Infinity : rawPrimary;
     
     let localPath = [baseRoute[0]];
     for (let i = 0; i < baseRoute.length - 1; i++) {
         let p1 = localPath[localPath.length - 1]; 
         let p2 = baseRoute[i+1];
-        if (isSegmentBlocked(p1, p2)) localPath.push(...getLocalDetour(p1, p2));
+        if (isSegmentBlocked(p1, p2)) localPath.push(...getLocalDetour(p1, p2, 80));
         else localPath.push(p2);
     }
     if (localPath.length === baseRoute.length) localPath = baseRoute; 
-    let localScore = calculatePathScore(localPath);
-    if (localPath !== baseRoute) localScore -= 50; 
+    let rawLocal = calculatePathScore(localPath);
+    if (localPath !== baseRoute) rawLocal -= 50; 
+    let localScore = isPathHardBlocked(localPath) ? Infinity : rawLocal;
 
-    const dest = baseRoute[baseRoute.length-1];
-    let fullPath = [];
-    if (dest.y >= 450) fullPath = [baseRoute[0], { x: 150, y: 700 }, { x: dest.x, y: 700 }, dest];
-    else if (dest.y <= 350 && dest.x <= 500) fullPath = [baseRoute[0], { x: 150, y: 100 }, { x: dest.x, y: 100 }, dest];
-    else fullPath = [baseRoute[0], { x: 450, y: 100 }, { x: 800, y: 100 }, { x: 800, y: dest.y }, dest];
+    // Reconstruct "Full Detour" natively as a Wide Bypass tracking deep parallel corridors avoiding Edge Perimeter physics!
+    let fullPath = [baseRoute[0]];
+    for (let i = 0; i < baseRoute.length - 1; i++) {
+        let p1 = fullPath[fullPath.length - 1]; 
+        let p2 = baseRoute[i+1];
+        if (isSegmentBlocked(p1, p2)) {
+            fullPath.push(...getLocalDetour(p1, p2, 180));
+        } else {
+            fullPath.push(p2);
+        }
+    }
     
-    let fullScore = calculatePathScore(fullPath);
+    let rawFull = calculatePathScore(fullPath);
+    let fullScore = isPathHardBlocked(fullPath) ? Infinity : rawFull;
 
     console.log(`-- Route Synthesis --`);
-    console.log(`Path A (Primary) score: ${Math.floor(primaryScore)}`);
-    console.log(`Path B (Local) score: ${Math.floor(localScore)}`);
-    console.log(`Path C (Full) score: ${Math.floor(fullScore)}`);
+    console.log(`Path A (Primary) score: ${primaryScore === Infinity ? 'BLOCKED' : Math.floor(primaryScore)}`);
+    console.log(`Path B (Local) score: ${localScore === Infinity ? 'BLOCKED' : Math.floor(localScore)}`);
+    console.log(`Path C (Full) score: ${fullScore === Infinity ? 'BLOCKED' : Math.floor(fullScore)}`);
+    
+    // Fallback: If ALL paths return blocked (extreme crowd wall), fall back structurally minimizing damage smoothly!
+    if (primaryScore === Infinity && localScore === Infinity && fullScore === Infinity) {
+        primaryScore = rawPrimary;
+        localScore = rawLocal;
+        fullScore = rawFull;
+        console.log("FALLBACK: All trajectories physically blocked. Selecting minimum density resistance naturally...");
+    }
 
     let bestPath = baseRoute;
     let type = 'primary';
@@ -790,10 +1056,18 @@ function redrawActiveLines() {
         origGroup.appendChild(createSVGElement('path', { d: pathArrayToString(currentlyBlockedLine), class: 'path-blocked' }));
     }
     optGroup.appendChild(createSVGElement('path', { d: pathArrayToString(userAvatar.path), class: 'path-optimized' }));
+    
+    // Draw explicit Final Vector dotted tracks tracking completely organically correctly
+    if (userAvatar.finalDestination && userAvatar.path.length > 0) {
+        const lastNode = userAvatar.path[userAvatar.path.length - 1];
+        const dStr = `M ${lastNode.x} ${lastNode.y} L ${userAvatar.finalDestination.x} ${userAvatar.finalDestination.y}`;
+        optGroup.appendChild(createSVGElement('path', { d: dStr, class: 'path-final-dotted' }));
+    }
 }
 
-function navigateToCustom(snappedDestNode) {
+function navigateToCustom(snappedDestNode, clickedDestNode) {
     currentDestination = 'custom';
+    userAvatar.finalDestination = clickedDestNode;
     const startPoint = (userAvatar.active && !userAvatar.isPaused) ? { x: userAvatar.x, y: userAvatar.y } : nodes.gate;
     
     // Build explicit synthetic vector strictly mapped to Center Hub bounding
@@ -825,6 +1099,9 @@ function navigateToCustom(snappedDestNode) {
     userAvatar.targetIndex = 1;
     userAvatar.active = true;
     userAvatar.isPaused = false;
+    userAvatar.state = result.type !== 'primary' ? 'DETOURING' : 'MOVING';
+    userAvatar.cooldownTicks = 1;
+    userAvatar.waitTicks = 0;
 
     redrawActiveLines();
     evalAnalytics();
@@ -848,6 +1125,7 @@ function navigateToCustom(snappedDestNode) {
 
 function navigateTo(destKey) {
     currentDestination = destKey;
+    userAvatar.finalDestination = null;
     const baseNodes = routes[destKey];
     
     // Purge old Avatar layout if resetting
@@ -870,6 +1148,9 @@ function navigateTo(destKey) {
     userAvatar.targetIndex = 1;
     userAvatar.active = true;
     userAvatar.isPaused = false;
+    userAvatar.state = result.type !== 'primary' ? 'DETOURING' : 'MOVING';
+    userAvatar.cooldownTicks = 1;
+    userAvatar.waitTicks = 0;
 
     redrawActiveLines();
     evalAnalytics();

@@ -73,6 +73,29 @@ body, html {
     to { filter: drop-shadow(0 0 8px rgba(217, 83, 79, 1)); stroke-opacity: 1; }
 }
 
+.avatar-waiting {
+    animation: waitingGlow 1.5s infinite alternate;
+}
+
+@keyframes waitingGlow {
+    from { filter: drop-shadow(0 0 2px rgba(255, 165, 0, 0.5)); stroke: orange; stroke-width: 2; stroke-opacity: 0.5; }
+    to { filter: drop-shadow(0 0 10px rgba(255, 140, 0, 1)); stroke-opacity: 1; stroke-width: 4; }
+}
+
+.avatar-pushing {
+    filter: drop-shadow(0 0 6px rgba(217, 83, 79, 0.8));
+    stroke: rgba(217, 83, 79, 1);
+    stroke-width: 3;
+}
+
+.path-final-dotted {
+    fill: none;
+    stroke: #2ecc71;
+    stroke-width: 4;
+    stroke-dasharray: 6 6;
+    stroke-linecap: round;
+}
+
 .path-optimized {
     fill: none;
     stroke: #007BFF;
@@ -364,6 +387,15 @@ h1 {
 .red-dash { background-color: #d9534f; border: 1px dashed white; }
 .blue { background-color: #007BFF; }
 
+.avatar-waiting {
+    animation: avatar-wait-pulse 1s infinite alternate;
+}
+
+@keyframes avatar-wait-pulse {
+    0% { filter: drop-shadow(0 0 2px orange); transform: scale(1); }
+    100% { filter: drop-shadow(0 0 10px red); transform: scale(1.2); }
+}
+
 /* Dynamic Click Path Target */
 .target-ping {
     fill: none;
@@ -415,6 +447,14 @@ h1 {
 .gray-rock {
     background-color: #a2aab0;
     border: 1px solid #7f8c8d;
+}
+
+.friend-dot {
+    fill: #9b59b6; 
+    stroke: white;
+    stroke-width: 2;
+    filter: drop-shadow(0 0 4px rgba(155, 89, 182, 0.8));
+    z-index: 99;
 }
 
 /* Make it somewhat responsive */

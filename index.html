@@ -39,6 +39,7 @@
             <button class="btn" onclick="navigateTo('food')">Go to Food</button>
             <button class="btn" onclick="navigateTo('washroom')">Go to Washroom</button>
             <button class="btn" onclick="navigateTo('seat')">Go to Seat A12</button>
+            <button class="btn" onclick="navigateToFriend()" style="background:#f3e5f5; color:#8e24aa; border-color:#d1c4e9;">Find My Friend</button>
         </div>
 
         <div id="route-info" class="info-card" style="display: none;">
@@ -76,7 +77,7 @@
             <label>Detour Mode
                 <select id="ctrl-detour-mode">
                     <option value="local">Local Detour (Bounding)</option>
-                    <option value="full">Full Reroute (Outer)</option>
+                    <option value="full">Full Reroute (Wide Bypass)</option>
                 </select>
             </label>
             <label>Congestion Sensitivity (<span id="val-sensitivity">3</span>)
@@ -101,6 +102,7 @@
         <h4>Legend</h4>
         <ul>
             <li><span class="legend-dot user-color"></span> You (User)</li>
+            <li><span class="legend-dot legend-friend" style="width: 12px; height: 12px; display: inline-block; border-radius: 50%; background: #9b59b6;"></span> Friend</li>
             <li><span class="legend-dot person-color"></span> Person</li>
             <li><span class="legend-box green"></span> Low crowd</li>
             <li><span class="legend-box yellow"></span> Medium crowd</li>
