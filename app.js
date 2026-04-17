@@ -214,7 +214,9 @@ function resetSimulation() {
     document.getElementById('val-sensitivity').innerText = '8';
     
     manualBlocks.clear();
-    setScenario('normal');
+    document.getElementById('btn-normal').classList.add('active');
+    document.getElementById('btn-washroom').classList.remove('active');
+    document.getElementById('btn-food').classList.remove('active');
     
     const existingAvatar = document.getElementById('user-avatar-dot');
     if (existingAvatar) existingAvatar.remove();
@@ -705,11 +707,11 @@ function updateGridDensity() {
 
                 // Subtly highlight blocked cells
                 if (shouldBeBlocked) {
-                    cell.svgRect.setAttribute('fill', isManualBlock ? 'rgba(150, 0, 150, 0.4)' : 'rgba(255, 50, 50, 0.4)');
-                    cell.svgRect.setAttribute('stroke', isManualBlock ? 'rgba(150, 0, 150, 0.8)' : 'rgba(255, 0, 0, 0.8)');
+                    cell.svgRect.setAttribute('fill', isManualBlock ? 'rgba(139, 92, 246, 0.3)' : 'rgba(236, 72, 153, 0.3)');
+                    cell.svgRect.setAttribute('stroke', isManualBlock ? 'rgba(139, 92, 246, 0.6)' : 'rgba(236, 72, 153, 0.6)');
                 } else {
-                    cell.svgRect.setAttribute('fill', 'rgba(255, 50, 50, 0)');
-                    cell.svgRect.setAttribute('stroke', 'rgba(200, 200, 200, 0.1)');
+                    cell.svgRect.setAttribute('fill', 'transparent');
+                    cell.svgRect.setAttribute('stroke', 'rgba(255, 255, 255, 0.05)');
                 }
             }
         }
@@ -875,12 +877,15 @@ function evalAnalytics() {
 }
 
 function setScenario(scenario) {
+    applyScenario(scenario);
+}
+
+function applyScenario(scenario) {
     currentScenario = scenario;
 
     // Update button visuals
-    document.querySelectorAll('.btn-scenario').forEach(btn => btn.classList.remove('active-scenario'));
-    const btnEl = document.getElementById(`btn-${scenario}`);
-    if (btnEl) btnEl.classList.add('active-scenario');
+    document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
+    document.getElementById(`btn-${scenario}`).classList.add('active');
 
     // Re-initialize people map
     initPeople();
