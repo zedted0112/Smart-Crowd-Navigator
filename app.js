@@ -844,6 +844,7 @@ function updateGridDensity() {
         }
     }
     updateFacilityMetrics();
+    autoRerouteIfBlocked();
 }
 
 function setScenario(scenario) {
@@ -878,6 +879,47 @@ function isSegmentBlocked(p1, p2) {
         if (cell.blocked) return true;
     }
     return false;
+}
+
+function autoRerouteIfBlocked() {
+    if (!userAvatar.active || !userAvatar.path || userAvatar.path.length === 0) return;
+
+    // Check if the current segment or any future segment is now blocked
+    let pathIsBlocked = false;
+    
+    // Check from current position to next node
+    const currentPos = { x: userAvatar.x, y: userAvatar.y };
+    const nextNode = userAvatar.path[userAvatar.targetIndex];
+    if (isSegmentBlocked(currentPos, nextNode)) {
+        pathIsBlocked = true;
+    } else {
+        // Check future segments
+        for (let i = userAvatar.targetIndex; i < userAvatar.path.length - 1; i++) {
+            if (isSegmentBlocked(userAvatar.path[i], userAvatar.path[i+1])) {
+                pathIsBlocked = true;
+                break;
+            }
+        }
+    }
+
+    if (pathIsBlocked) {
+        console.log("[Navigation] Obstruction detected on active path! Calculating detour...");
+        const start = { x: userAvatar.x, y: userAvatar.y };
+        const target = userAvatar.finalDestination || userAvatar.path[userAvatar.path.length - 1];
+        
+        const result = calculateSafeRoute([start, target]);
+        userAvatar.path = result.path;
+        userAvatar.targetIndex = 0;
+        userAvatar.active = true; // Ensure movement continues
+        
+        redrawActiveLines();
+        
+        const feedStatus = document.getElementById('feed-route-type');
+        if (feedStatus) {
+            feedStatus.innerText = "Detour Active";
+            feedStatus.style.color = "var(--status-yellow)";
+        }
+    }
 }
 
 // --- CORE NAVIGATION ENGINE ---

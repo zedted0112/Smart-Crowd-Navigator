@@ -1,23 +1,82 @@
-# Standalone Smart Venue Navigator
+# 🧠 Venue IQ: Smart Crowd Navigator
+### *Intelligent 2D Simulation & Real-time Venue Logistics Engine*
 
-A lightweight, purely vanilla HTML/CSS/JavaScript web application to demonstrate dynamic SVG-graph routing and smart crowd avoidance within a 2D venue plan.
+[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Vanilla JS](https://img.shields.io/badge/Engine-Vanilla_JS-f7df1e)](https://developer.mozilla.org/en-US/docs/Web/JavaScript)
+[![Express](https://img.shields.io/badge/Server-Express_8080-lightgrey)](https://expressjs.com/)
 
-## Features
-
-- **No Output Dependencies**: Exclusively built with native HTML5 `<svg>`, standard web CSS, and vanilla JavaScript (no React, Next.js, or external Map APIs).
-- **Interactive SVG Venue**: Uses explicit coordinate topology and SVG nodes/paths to physically map out a stadium/venue setting. Let the user navigate visually to predefined hubs (e.g., Gate, Food Court, Washroom, Seat A12).
-- **Smart Path Selector**: Employs an intelligent routing check. Before drawing a path between points, the browser verifies if the "primary" vector route passes through an actively blocked high-density (red) crowd zone.
-- **Visual Detouring**: If blocked, it immediately renders an "alternate" route in glowing blue to bypass the crowd, whilst still mapping the original blocked route in dashed gray as visual feedback.
-- **Live 5s Crowd Simulation**: Background clock cycles every 5 seconds to randomly pick a venue zone and randomize its crowd density setting (Green, Yellow, Red). All visuals map natively on the fly—seamlessly rerouting any actively requested path immediately in real-time.
-- **Dynamic Status Readout**: Fully reactive UI control panel that instantly evaluates congestion logic, updating elements with color-coded "High congestion detected", "Route optimized to avoid crowd", or "Clear path ahead" states alongside context ETAs.
-
-## Quickstart
-
-Since the project operates entirely offline via simple web components:
-1. Download or clone this repository.
-2. Open `index.html` directly in any modern JavaScript-enabled web browser.
-3. Test navigation by clicking the UI buttons and wait for the real-time background simulation to interact dynamically with your paths over time!
-
+**Venue IQ** is a sophisticated, real-time navigator designed to solve the complexities of venue logistics. By blending **state-driven agent behavior** with **advanced A* pathfinding**, the simulator provides a dynamic preview of crowd flow, facility bottlenecks, and optimal user navigation in high-density environments.
 
 ---
-*Last deployed via GitHub Actions: Fri Apr 17 15:23:54 IST 2026*
+
+## 🚀 Key Features
+
+### 👥 1. Behavioral Crowd Simulation
+- **Agent Lifecycle**: 100+ individual agents move through the venue with unique states: `MOVING`, `QUEUING`, and `SERVING`.
+- **Intelligent Goals**: Agents are driven by probabilistic logic (40% Restrooms, 30% Food, 30% Roaming), mimicking realistic attendee behavior.
+- **Patience Traits**: Each agent possesses a "patience" metric; if a queue wait time exceeds their threshold, they abandon the goal and re-evaluate, preventing infinite gridlocks.
+
+### 🧭 2. Real-time A* Pathfinding
+- **Congestion Awareness**: The routing engine doesn't just calculate distance; it evaluates cell-based crowd density and applies a "heat-map" penalty cost to avoid high-traffic "red zones".
+- **Dynamic Rerouting**: If a corridor becomes blocked or overly congested, the A* engine recalculates a global detour in milliseconds, visualizing the shift from "Primary" to "Optimized" vectors.
+- **Grid-Aware Precision**: Operates on a coordinate-precise 50x50 cell grid, allowing navigation to any valid spot in the venue with sub-meter accuracy.
+
+### 📊 3. Facility Analytics Dashboard
+- **Queue Metrics**: Live tracking of queue lengths (`Q`) and server availability (`S`) for every washroom (W1–W5) and food stall (F1–F5).
+- **ETA & Wait Time Logic**: Predictive wait time calculations based on service capacity and current queue depth.
+- **"Best Option" Scoring**: An intelligent recommendation engine highlights the facility with the lowest combined **Travel Time + Wait Time** penalty.
+
+### 🖱️ 4. Interactive Draggable User
+- **Precision Tracking**: Drag and drop the user avatar to any cell. The system instantly snaps to the grid and re-computes the entire navigation stream.
+- **Silence Period Logic**: Advanced event handling resolves collisions between dragging and clicking, ensuring a smooth, artifact-free interaction.
+
+### 🎭 5. Simulation Scenarios
+- **Standard Mode**: Balanced flow.
+- **Facility Rush**: Simulates half-time/break periods where restroom demand spikes by 800%.
+- **Dining Peak**: Concentrates traffic around the food courts, testing the efficiency of stall service times.
+
+---
+
+## 🎨 Design Aesthetics
+- **Pro Dashboard**: A collapsible, glassmorphic UI that allows for a "Full Map View" mode.
+- **Vibrant Visuals**: Color-coded facility statuses (Green/Yellow/Red) and glowing A* path vectors.
+- **Micro-animations**: Smooth linear movement for all agents and the user avatar, eliminating visual "bouncing" and jitter.
+
+---
+
+## 🛠️ Technical Stack
+- **Frontend**: Native HTML5 SVG, Vanilla JavaScript (ES6+), Modern CSS3 with Flex/Grid and Blur filters.
+- **Backend**: Express.js (Node.js) for static asset delivery and future Firebase integration.
+- **Engine Logic**: Vector-based pathfinding, Priority Queue implementation for A*, and deterministic agent state-machines.
+
+---
+
+## 🏁 Quick Start
+
+1. **Install Dependencies**:
+   ```bash
+   npm install
+   ```
+
+2. **Run Locally**:
+   ```bash
+   npm start
+   ```
+
+3. **Access the App**:
+   Navigate to `http://localhost:8080` in your browser.
+
+---
+
+## 🛤️ Pathfinding Heuristic
+The navigation engine uses a modified Manhattan distance heuristic combined with dynamic density weights:
+$$f(n) = g(n) + h(n) + \text{DensityWeight}(n)$$
+Where `DensityWeight` is proportional to the number of agents currently occupying a specific grid cell.
+
+---
+
+## 📜 License
+Distributed under the MIT License. See `LICENSE` for more information.
+
+---
+*Curated by Himalayan Coder | Smart Venue Navigation Simulator 2026*
