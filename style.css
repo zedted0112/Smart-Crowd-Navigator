@@ -19,6 +19,16 @@
     --status-red: #ef4444;
 }
 
+.obstacle-label, .facility-icon, .facility-label {
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+}
+
+.facility-premium {
+    filter: drop-shadow(0 0 10px currentColor);
+}
+
 * {
     box-sizing: border-box;
     margin: 0;
@@ -150,19 +160,40 @@ body, html {
 }
 
 .obstacle-rect {
-    fill: #1e293b;
-    stroke: var(--glass-border);
-    stroke-width: 1;
-    fill-opacity: 0.8;
+    fill: #0f172a;
+    stroke: var(--accent-blue);
+    stroke-width: 2;
+    fill-opacity: 0.9;
+    filter: drop-shadow(0 0 10px rgba(0, 210, 255, 0.2));
 }
 
 .obstacle-label {
-    fill: var(--text-secondary);
+    fill: var(--text-primary);
     font-size: 11px;
-    font-weight: 500;
+    font-weight: 700;
     text-transform: uppercase;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    filter: drop-shadow(0 0 5px #000);
 }
+
+.facility-base {
+    transition: all 0.3s ease;
+    stroke: rgba(255, 255, 255, 0.2);
+    stroke-width: 2;
+}
+
+.facility-icon {
+    font-size: 16px;
+    font-weight: 800;
+    fill: #fff;
+    text-anchor: middle;
+    pointer-events: none;
+    filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+}
+
+.status-green .facility-base { fill: var(--status-green); fill-opacity: 0.3; stroke: var(--status-green); }
+.status-yellow .facility-base { fill: var(--status-yellow); fill-opacity: 0.4; stroke: var(--status-yellow); }
+.status-red .facility-base { fill: var(--status-red); fill-opacity: 0.5; stroke: var(--status-red); }
 
 .seat-dot {
     fill: transparent;

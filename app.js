@@ -29,10 +29,10 @@ const routes = {
 };
 
 const staticObstacles = [
-    { x: 250, y: 500, w: 100, h: 100, label: "Shop" },
-    { x: 250, y: 200, w: 100, h: 100, label: "Restricted" },
-    { x: 550, y: 150, w: 150, h: 80,  label: "Kiosk" },
-    { x: 550, y: 550, w: 150, h: 80,  label: "Food Stall" }
+    { x: 240, y: 480, w: 160, h: 140, label: "Premium Shop" },
+    { x: 240, y: 180, w: 160, h: 140, label: "Research Lab" },
+    { x: 580, y: 140, w: 200, h: 100, label: "Tech Kiosk" },
+    { x: 580, y: 560, w: 200, h: 100, label: "Grand Buffet" }
 ];
 
 // Grid Specs
@@ -334,18 +334,32 @@ function initGrid() {
     for (let c = 0; c < COLS; c++) {
         grid[c] = [];
         for (let r = 0; r < ROWS; r++) {
+            const cx = c * CELL_SIZE + CELL_SIZE / 2;
+            const cy = r * CELL_SIZE + CELL_SIZE / 2;
+            const isBlocked = isPointInObstacle(cx, cy); 
+            
             grid[c][r] = {
                 col: c, row: r,
                 x: c * CELL_SIZE,
                 y: r * CELL_SIZE,
-                cx: c * CELL_SIZE + CELL_SIZE / 2,
-                cy: r * CELL_SIZE + CELL_SIZE / 2,
+                cx: cx,
+                cy: cy,
                 count: 0,
-                blocked: false,
+                blocked: isBlocked,
+                staticBlocked: isBlocked,
                 svgRect: null
             };
         }
     }
+}
+
+function isPointInFacility(x, y) {
+    for (const type in facilities) {
+        for (const f of facilities[type]) {
+            if (x >= f.x - 24 && x <= f.x + 24 && y >= f.y - 24 && y <= f.y + 24) return true;
+        }
+    }
+    return false;
 }
 
 function getCell(px, py) {
@@ -415,8 +429,10 @@ function drawObstacles() {
         
         if (obs.label) {
             const text = createSVGElement('text', {
-                x: obs.x + obs.w / 2, y: obs.y + obs.h / 2 + 5,
-                class: 'obstacle-label'
+                x: obs.x + obs.w / 2, y: obs.y + obs.h / 2,
+                class: 'obstacle-label',
+                'text-anchor': 'middle',
+                'dominant-baseline': 'central'
             });
             text.textContent = obs.label;
             layer.appendChild(text);
@@ -447,16 +463,27 @@ function drawFacilities() {
                 class: 'facility-marker status-green'
             });
             
-            const rect = createSVGElement('rect', {
-                x: f.x - 12, y: f.y - 12, width: 24, height: 24, rx: 6
+            // Outer Shield/Base
+            container.appendChild(createSVGElement('rect', {
+                x: f.x - 24, y: f.y - 24, width: 48, height: 48, rx: 14,
+                class: 'facility-base'
+            }));
+
+            // High-Contrast Icon
+            const icon = createSVGElement('text', {
+                x: f.x, y: f.y, class: 'facility-icon',
+                'text-anchor': 'middle',
+                'dominant-baseline': 'central'
             });
+            icon.textContent = type === 'washroom' ? 'WC' : '🍴';
+            container.appendChild(icon);
             
             const label = createSVGElement('text', {
-                x: f.x, y: f.y + 28, class: 'facility-label'
+                x: f.x, y: f.y + 42, class: 'facility-label',
+                'text-anchor': 'middle'
             });
             label.textContent = f.label;
             
-            container.appendChild(rect);
             fGroup.appendChild(container);
             fGroup.appendChild(label);
         });
@@ -557,6 +584,11 @@ function snapTargetNode(px, py) {
     return { x: cell.cx, y: cell.cy };
 }
 
+function isPointBlocked(x, y) {
+    return isPointInObstacle(x, y) || isPointInFacility(x, y);
+}
+
+
 function isPointInObstacle(x, y) {
     for (const obs of staticObstacles) {
         if (x >= obs.x && x <= obs.x + obs.w &&
@@ -627,14 +659,11 @@ function navigateToFriend() {
 }
 
 function spawnPerson() {
-    let startX = 0;
-    let startY = 0;
     let corridor = -1; 
     let isScenarioFocused = false;
 
     if (CORRIDOR_BIAS) {
         isScenarioFocused = Math.random() < 0.85;
-
         if (isScenarioFocused && currentScenario === 'washroom') {
             corridor = Math.random() > 0.4 ? 1 : 0; 
         } else if (isScenarioFocused && currentScenario === 'food') {
@@ -644,19 +673,20 @@ function spawnPerson() {
         }
     }
 
-    if (corridor === 0) {
-        startX = 150 + Math.random() * 300; startY = 400 + (Math.random() * 40 - 20);
-    } else if (corridor === 1) {
-        startX = 450 + (Math.random() * 40 - 20); startY = 100 + Math.random() * 300;
-    } else if (corridor === 2) {
-        startX = 450 + (Math.random() * 40 - 20); startY = 400 + Math.random() * 300;
-    } else if (corridor === 3) {
-        startX = 450 + Math.random() * 350; startY = 400 + (Math.random() * 40 - 20);
-    } else {
-        startX = Math.random() * 800 + 100; startY = Math.random() * 600 + 100;
+    const getInitialPos = () => {
+        if (corridor === 0) return { x: 100 + Math.random() * 100, y: 400 + (Math.random() * 40 - 20) };
+        if (corridor === 1) return { x: 450 + (Math.random() * 20 - 10), y: 150 + Math.random() * 150 };
+        if (corridor === 2) return { x: 450 + (Math.random() * 20 - 10), y: 450 + Math.random() * 150 };
+        if (corridor === 3) return { x: 500 + Math.random() * 400, y: 400 + (Math.random() * 40 - 20) };
+        return { x: Math.random() * 900 + 50, y: Math.random() * 700 + 50 };
+    };
+
+    let { x: startX, y: startY } = getInitialPos();
+    let attempts = 0;
+    while(isPointBlocked(startX, startY) && attempts < 15) {
+        ({ x: startX, y: startY } = getInitialPos());
+        attempts++;
     }
-    
-    if (isPointInObstacle(startX, startY)) return spawnPerson();
 
     const p = {
         id: nextPersonId++,
@@ -720,7 +750,13 @@ function pickTarget(p) {
         p.targetFacility = null;
     }
     
-    if (isPointInObstacle(p.tx, p.ty)) pickTarget(p);
+    // Final safety check to prevent agents from aiming inside buildings
+    let safety = 0;
+    while(isPointBlocked(p.tx, p.ty) && safety < 10) {
+        p.tx += (Math.random() * 40 - 20);
+        p.ty += (Math.random() * 40 - 20);
+        safety++;
+    }
 }
 
 function initPeople() {
@@ -825,24 +861,21 @@ function updateGridDensity() {
         cell.count++;
     });
 
-    for (let c = 0; c < COLS; c++) {
-        for (let r = 0; r < ROWS; r++) {
-            const cell = grid[c][r];
-            const isManualBlock = manualBlocks.has(`${c},${r}`);
-            const shouldBeBlocked = cell.count > BLOCKED_THRESHOLD || isManualBlock;
-
-            if (cell.blocked !== shouldBeBlocked) {
-                cell.blocked = shouldBeBlocked;
-                if (shouldBeBlocked) {
+    grid.forEach(col => col.forEach(cell => {
+        const isManualBlock = manualBlocks.has(`${cell.col},${cell.row}`);
+        const shouldBeBlocked = cell.staticBlocked || cell.count > BLOCKED_THRESHOLD || isManualBlock;
+        
+        if (cell.blocked !== shouldBeBlocked) {
+            cell.blocked = shouldBeBlocked;
+            if (shouldBeBlocked) {
+                if (!cell.staticBlocked) {
                     cell.svgRect.setAttribute('fill', isManualBlock ? 'rgba(139, 92, 246, 0.3)' : 'rgba(236, 72, 153, 0.3)');
-                    cell.svgRect.setAttribute('stroke', isManualBlock ? 'rgba(139, 92, 246, 0.6)' : 'rgba(236, 72, 153, 0.6)');
-                } else {
-                    cell.svgRect.setAttribute('fill', 'transparent');
-                    cell.svgRect.setAttribute('stroke', 'rgba(255, 255, 255, 0.05)');
                 }
+            } else {
+                cell.svgRect.setAttribute('fill', 'transparent');
             }
         }
-    }
+    }));
     updateFacilityMetrics();
     autoRerouteIfBlocked();
 }
