@@ -7,18 +7,18 @@ const nodes = {
 
 const facilities = {
     washroom: [
-        { id: 'W1', x: 80, y: 80, label: 'W1', queue: [], serving: [], capacity: 2, serviceTime: 120 },
-        { id: 'W2', x: 80, y: 720, label: 'W2', queue: [], serving: [], capacity: 2, serviceTime: 120 },
-        { id: 'W3', x: 920, y: 80, label: 'W3', queue: [], serving: [], capacity: 2, serviceTime: 120 },
-        { id: 'W4', x: 920, y: 720, label: 'W4', queue: [], serving: [], capacity: 2, serviceTime: 120 },
-        { id: 'W5', x: 450, y: 200, label: 'W5 (Main)', queue: [], serving: [], capacity: 4, serviceTime: 100 }
+        { id: 'W1', x: 80, y: 80, label: 'W1', queue: [], serving: [], capacity: 5, serviceTime: 120 },
+        { id: 'W2', x: 80, y: 720, label: 'W2', queue: [], serving: [], capacity: 5, serviceTime: 120 },
+        { id: 'W3', x: 920, y: 80, label: 'W3', queue: [], serving: [], capacity: 5, serviceTime: 120 },
+        { id: 'W4', x: 920, y: 720, label: 'W4', queue: [], serving: [], capacity: 5, serviceTime: 120 },
+        { id: 'W5', x: 450, y: 200, label: 'W5 (Main)', queue: [], serving: [], capacity: 5, serviceTime: 100 }
     ],
     food: [
-        { id: 'F1', x: 450, y: 750, label: 'F1 (Main)', queue: [], serving: [], capacity: 3, serviceTime: 180 },
-        { id: 'F2', x: 50, y: 400, label: 'F2', queue: [], serving: [], capacity: 2, serviceTime: 150 },
-        { id: 'F3', x: 950, y: 400, label: 'F3', queue: [], serving: [], capacity: 2, serviceTime: 150 },
-        { id: 'F4', x: 450, y: 50, label: 'F4', queue: [], serving: [], capacity: 2, serviceTime: 150 },
-        { id: 'F5', x: 850, y: 650, label: 'F5', queue: [], serving: [], capacity: 2, serviceTime: 150 }
+        { id: 'F1', x: 450, y: 750, label: 'F1 (Main)', queue: [], serving: [], capacity: 5, serviceTime: 180 },
+        { id: 'F2', x: 50, y: 400, label: 'F2', queue: [], serving: [], capacity: 5, serviceTime: 150 },
+        { id: 'F3', x: 950, y: 400, label: 'F3', queue: [], serving: [], capacity: 5, serviceTime: 150 },
+        { id: 'F4', x: 450, y: 50, label: 'F4', queue: [], serving: [], capacity: 5, serviceTime: 150 },
+        { id: 'F5', x: 850, y: 650, label: 'F5', queue: [], serving: [], capacity: 5, serviceTime: 150 }
     ]
 };
 
@@ -485,6 +485,28 @@ function drawFacilities() {
             label.textContent = f.label;
             
             fGroup.appendChild(container);
+
+            // Occupancy Badge (Background circle + Text)
+            const badgeGroup = createSVGElement('g', {
+                id: `fac-badge-group-${f.id}`,
+                style: 'pointer-events: none;'
+            });
+            badgeGroup.appendChild(createSVGElement('circle', {
+                cx: f.x + 22, cy: f.y - 22, r: 12,
+                class: 'facility-badge-bg status-green-bg',
+                id: `fac-badge-bg-${f.id}`
+            }));
+            const badgeText = createSVGElement('text', {
+                x: f.x + 22, y: f.y - 22, 
+                class: 'facility-badge-text',
+                id: `fac-badge-val-${f.id}`,
+                'text-anchor': 'middle',
+                'dominant-baseline': 'central'
+            });
+            badgeText.textContent = '0';
+            badgeGroup.appendChild(badgeText);
+            fGroup.appendChild(badgeGroup);
+
             fGroup.appendChild(label);
         });
     });
@@ -550,10 +572,26 @@ function updateDashboardUI() {
             if (dashQ) dashQ.innerText = qCount;
             if (dashS) dashS.innerText = sCount;
             
-            const ewt = Math.round((qCount / f.capacity) * (f.serviceTime / 50));
+            // EWT now considers serving saturation
+            // If Q=0 but S=Full, wait should be at least some fraction of service time
+            const waitBase = (qCount === 0 && sCount === f.capacity) ? 0.5 : (qCount / f.capacity);
+            const ewt = Math.round(waitBase * (f.serviceTime / 50));
+
             if (dashEWT) {
                 dashEWT.innerText = `${ewt}s`;
                 dashEWT.className = 'ewt-val ' + (ewt < 10 ? 'ewt-green' : (ewt < 30 ? 'ewt-yellow' : 'ewt-red'));
+            }
+
+            // Sync Map Badge
+            const mapBadgeVal = document.getElementById(`fac-badge-val-${f.id}`);
+            const mapBadgeBg = document.getElementById(`fac-badge-bg-${f.id}`);
+            if (mapBadgeVal) mapBadgeVal.textContent = qCount + sCount;
+            if (mapBadgeBg) {
+                const total = qCount + sCount;
+                mapBadgeBg.classList.remove('status-green-bg', 'status-yellow-bg', 'status-red-bg');
+                if (total < f.capacity) mapBadgeBg.classList.add('status-green-bg');
+                else if (total < f.capacity * 3) mapBadgeBg.classList.add('status-yellow-bg');
+                else mapBadgeBg.classList.add('status-red-bg');
             }
 
             const isBest = userAvatar.finalDestination && userAvatar.finalDestination.id === f.id;
@@ -704,20 +742,27 @@ function spawnPerson() {
 
     const rng = Math.random();
     if (currentScenario === 'washroom') {
-        p.goal = rng < 0.8 ? 'washroom' : (rng < 0.9 ? 'food' : 'roam');
+        p.goal = rng < 0.95 ? 'washroom' : 'roam';
     } else if (currentScenario === 'food') {
-        p.goal = rng < 0.8 ? 'food' : (rng < 0.9 ? 'washroom' : 'roam');
+        p.goal = rng < 0.95 ? 'food' : 'roam';
     } else {
-        if (rng < 0.4) p.goal = 'washroom';
-        else if (rng < 0.7) p.goal = 'food';
+        if (rng < 0.3) p.goal = 'washroom';
+        else if (rng < 0.6) p.goal = 'food';
         else p.goal = 'roam';
+    }
+
+    // "Rush" agents move faster and have a distinct visual
+    p.isRushing = (p.goal === currentScenario && currentScenario !== 'normal');
+    if (p.isRushing) {
+        p.speed *= 1.8; // Rush speed
     }
 
     pickTarget(p);
     people.push(p);
 
     const circle = createSVGElement('circle', {
-        id: `person-${p.id}`, cx: p.x, cy: p.y, r: 4, class: 'person-dot'
+        id: `person-${p.id}`, cx: p.x, cy: p.y, r: p.isRushing ? 5 : 4, 
+        class: `person-dot ${p.isRushing ? 'person-rushing' : ''}`
     });
 
     const peopleGroup = document.getElementById('people-layer');
@@ -728,8 +773,9 @@ function pickTarget(p) {
     let chosenFac = null;
 
     if (p.goal === 'washroom' || p.goal === 'food') {
-        // Agents use the same intelligent scoring as the user to pick their target
-        chosenFac = findBestFacility(p.goal);
+        // AI now makes decisions based on ITS OWN location, not the user's
+        // We also exclude any facility they just left out of frustration
+        chosenFac = findBestFacility(p.goal, { x: p.x, y: p.y }, true, p.frustratedWith);
     }
 
     if (chosenFac) {
@@ -780,7 +826,14 @@ function animatePeople() {
             const dy = p.ty - p.y;
             const dist = Math.hypot(dx, dy);
 
-            if (dist < 25) { 
+            // Logic Fix: Check distance to ACTUAL facility center, not the jittered target
+            // And use a larger threshold (45px) so agents 'check-in' easily even if map is crowded
+            let distFac = Infinity;
+            if (p.targetFacility) {
+                distFac = Math.hypot(p.targetFacility.x - p.x, p.targetFacility.y - p.y);
+            }
+
+            if (distFac < 45 || dist < 25) { 
                 if (p.targetFacility) {
                     p.state = 'QUEUING';
                     p.targetFacility.queue.push(p);
@@ -793,21 +846,51 @@ function animatePeople() {
                 p.y += (dy / dist) * p.speed * SPEED_MULTIPLIER;
             }
         } else if (p.state === 'QUEUING') {
+            // Stay in line formation (Capped at 10 dots for visuals)
+            const qIdxRaw = p.targetFacility.queue.indexOf(p);
+            if (qIdxRaw > -1) {
+                const qIdx = Math.min(qIdxRaw, 10);
+                // Jitter removed for a "decent rush" look
+                const jitter = 0; 
+
+                const vecX = p.targetFacility.x - 450;
+                const vecY = p.targetFacility.y - 400;
+                const len = Math.hypot(vecX, vecY) || 1;
+                const dx = vecX / len;
+                const dy = vecY / len;
+
+                // Smoothly slide toward their queue position
+                const targetX = p.targetFacility.x + dx * 25 * (qIdx + 1);
+                const targetY = p.targetFacility.y + dy * 25 * (qIdx + 1);
+                p.x += (targetX - p.x) * 0.1;
+                p.y += (targetY - p.y) * 0.1;
+            }
+
             if (Math.random() < 0.005 * (1 - p.patience)) {
-                p.state = 'MOVING';
+                // Impatience: Remember frustration and leave
                 if (p.targetFacility) {
+                    p.frustratedWith = p.targetFacility.id; 
                     const qIdx = p.targetFacility.queue.indexOf(p);
                     if (qIdx > -1) p.targetFacility.queue.splice(qIdx, 1);
                 }
+                p.state = 'MOVING';
                 p.targetFacility = null;
                 pickTarget(p);
             }
         } else if (p.state === 'SERVING') {
+            // Once served, frustration is forgotten
+            p.frustratedWith = null;
             p.serviceTicks -= 1 * SPEED_MULTIPLIER;
             if (p.serviceTicks <= 0) deadAgents.push(p);
         }
 
-        el.style.opacity = (p.state === 'SERVING') ? '0.3' : '1';
+        // VISIBILITY LOGIC: Hide agents in SERVING state (they are 'inside')
+        if (p.state === 'SERVING') {
+            el.style.opacity = '0';
+        } else {
+            el.style.opacity = '1';
+        }
+
         el.setAttribute('cx', p.x);
         el.setAttribute('cy', p.y);
     });
@@ -895,11 +978,35 @@ function setScenario(scenario) {
     document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${scenario}`).classList.add('active');
     
-    // Wipe and re-init fresh crowd with scenario-biased goals
-    initPeople();
-    updateGridDensity();
+    // Seamless Intention Shift: Keep the crowd, just change their goals
+    people.forEach(p => {
+        const rng = Math.random();
+        if (scenario === 'washroom') {
+            p.goal = rng < 0.95 ? 'washroom' : 'roam';
+        } else if (scenario === 'food') {
+            p.goal = rng < 0.95 ? 'food' : 'roam';
+        } else {
+            // Revert to normal balanced goals
+            if (rng < 0.3) p.goal = 'washroom';
+            else if (rng < 0.6) p.goal = 'food';
+            else p.goal = 'roam';
+        }
 
-    console.log(`[Scenario Sync] Switched to ${scenario}. Analytics and population reset.`);
+        // Set rush state and boost speed
+        p.isRushing = (p.goal === scenario && scenario !== 'normal');
+        p.speed = p.isRushing ? (0.1 + Math.random() * 0.1) * 1.8 : (0.1 + Math.random() * 0.1);
+        
+        // Reset frustration memory for a fresh start toward the rush
+        p.frustratedWith = null; 
+        
+        // Immediate Course Correction
+        pickTarget(p);
+    });
+
+    updateGridDensity();
+    updateFacilityMetrics();
+
+    console.log(`[Scenario Sync] Switched to ${scenario}. Intention shift complete for ${people.length} agents.`);
 }
 
 function isSegmentBlocked(p1, p2) {
@@ -1126,17 +1233,29 @@ function updateUserAvatarViz() {
     uEl.setAttribute('cy', userAvatar.y);
 }
 
-function findBestFacility(type) {
+function findBestFacility(type, startPos = null, addNoise = false, excludeId = null) {
     const options = facilities[type];
-    const startPos = { x: userAvatar.x, y: userAvatar.y };
+    const origin = startPos || { x: userAvatar.x, y: userAvatar.y };
     let best = null, minScore = Infinity;
 
     options.forEach(f => {
-        const path = findAStarPath(startPos, { x: f.x, y: f.y }, true);
+        if (f.id === excludeId) return; // Skip facility we are frustrated with
+        
+        const path = findAStarPath(origin, { x: f.x, y: f.y }, true);
         if (!path) return;
+        
         const dist = calculatePathDistance(path);
         const ewt = (f.queue.length / f.capacity) * (f.serviceTime / 50); 
-        const score = dist + (ewt * 10.0);
+        
+        // HEURISTIC: dist + (wait_time * penalty)
+        // We increase penalty to 35.0 to really force agents to stay away from the "Main" hot spots
+        let score = dist + (ewt * 35.0);
+        
+        if (addNoise) {
+            // Increased noise (0.8 - 1.2) to ensure wider distribution across all stalls
+            score *= (0.8 + Math.random() * 0.4); 
+        }
+
         if (score < minScore) { minScore = score; best = f; }
     });
     return best;
@@ -1154,7 +1273,8 @@ function processFacilityQueues() {
             if (f.serving.length < f.capacity && f.queue.length > 0) {
                 const nextAgent = f.queue.shift();
                 nextAgent.state = 'SERVING';
-                nextAgent.serviceTicks = f.serviceTime;
+                // STOCHASTIC: Randomize service time between 80% and 120% of baseline (approx 2-3s)
+                nextAgent.serviceTicks = f.serviceTime * (0.8 + Math.random() * 0.4);
                 f.serving.push(nextAgent);
             }
         });
@@ -1170,6 +1290,47 @@ function transmitToCloud() {
     });
     console.log("[Firebase Sync Hub]", payload);
 }
+function preloadQueue(facilityId, count) {
+    let f = null;
+    ['washroom', 'food'].forEach(type => {
+        const found = facilities[type].find(item => item.id === facilityId);
+        if (found) f = found;
+    });
+    if (!f) return;
+
+    for (let i = 0; i < count; i++) {
+        preloadAgent(f, i);
+    }
+}
+
+function preloadAgent(f, index) {
+    // Vector away from map center (450, 400)
+    const vecX = f.x - 450;
+    const vecY = f.y - 400;
+    const len = Math.hypot(vecX, vecY) || 1;
+    const dx = vecX / len;
+    const dy = vecY / len;
+
+    const p = {
+        id: nextPersonId++,
+        x: f.x + dx * 25 * (index + 1),
+        y: f.y + dy * 25 * (index + 1),
+        tx: f.x, ty: f.y, // Logical target is the facility
+        speed: Math.random() * 0.1 + 0.05,
+        state: 'QUEUING',
+        targetFacility: f,
+        patience: Math.random() * 0.5 + 0.5 // Preloaded agents are a bit more patient
+    };
+
+    f.queue.push(p);
+    people.push(p);
+
+    const circle = createSVGElement('circle', {
+        id: `person-${p.id}`, cx: p.x, cy: p.y, r: 4, class: 'person-dot person-queuing'
+    });
+    document.getElementById('people-layer').appendChild(circle);
+}
+
 function toggleLeftPanel() {
     document.getElementById('control-panel').classList.toggle('collapsed');
 }

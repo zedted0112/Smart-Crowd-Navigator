@@ -134,6 +134,43 @@ body, html {
     filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.2));
 }
 
+.person-queuing {
+    fill: var(--accent-blue);
+    opacity: 0.9;
+    animation: queuePulse 2s infinite alternate;
+}
+
+.facility-badge-bg {
+    stroke: rgba(255, 255, 255, 0.5);
+    stroke-width: 1.5;
+    filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));
+    transition: all 0.3s ease;
+}
+
+.facility-badge-text {
+    fill: #fff;
+    font-size: 10px;
+    font-weight: 800;
+    pointer-events: none;
+}
+
+.status-green-bg { fill: #10b981; }
+.status-yellow-bg { fill: #f59e0b; }
+.status-red-bg { fill: #ef4444; }
+
+@keyframes queuePulse {
+    from { r: 4; filter: drop-shadow(0 0 2px var(--accent-blue)); }
+    to { r: 5; filter: drop-shadow(0 0 8px var(--accent-blue)); }
+}
+
+}
+
+.person-rushing {
+    fill: var(--friend-color);
+    filter: drop-shadow(0 0 5px var(--friend-color));
+    opacity: 1;
+}
+
 .user-dot {
     fill: var(--user-color);
     stroke: #fff;
