@@ -14,6 +14,9 @@
     --friend-color: #d946ef;
     --path-color: rgba(99, 102, 241, 0.4);
     --path-active: #8b5cf6;
+    --status-green: #10b981;
+    --status-yellow: #f59e0b;
+    --status-red: #ef4444;
 }
 
 * {
@@ -180,12 +183,86 @@ body, html {
     box-shadow: 0 12px 48px 0 rgba(0, 0, 0, 0.9);
 }
 
+/* Side Panels Common */
+.panel, .dashboard-panel {
+    transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.3s ease;
+}
+
 /* Left Panel */
 .panel {
     position: absolute;
     top: 30px;
     left: 30px;
     width: 300px;
+}
+
+#control-panel.collapsed {
+    transform: translateX(-340px);
+}
+
+/* Right Panel */
+.dashboard-panel {
+    position: absolute;
+    top: 30px;
+    right: 30px;
+    width: 320px;
+    max-height: calc(100% - 180px);
+    overflow-y: auto;
+}
+
+.dashboard-panel.collapsed {
+    transform: translateX(360px);
+}
+
+/* Panel Handlers */
+.panel-handler {
+    position: absolute;
+    top: 20px;
+    width: 32px;
+    height: 48px;
+    background: var(--accent-indigo);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    cursor: pointer;
+    color: white;
+    font-size: 24px;
+    pointer-events: auto;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    z-index: 100;
+    transition: all 0.3s ease;
+}
+
+.panel-handler.left {
+    right: -32px;
+    border-radius: 0 12px 12px 0;
+}
+
+.panel-handler.right {
+    left: -32px;
+    border-radius: 12px 0 0 12px;
+}
+
+.panel-handler:hover {
+    background: var(--accent-purple);
+    width: 40px;
+}
+
+.collapsed .panel-handler.left {
+    right: -42px;
+}
+
+.collapsed .panel-handler.right {
+    left: -42px;
+}
+
+.collapsed .panel-handler span {
+    transform: rotate(180deg);
+}
+
+.panel-handler span {
+    transition: transform 0.4s ease;
+    display: inline-block;
 }
 
 h1 {
@@ -432,4 +509,80 @@ select {
 @keyframes ping {
     0% { r: 5; opacity: 1; stroke-width: 3; }
     100% { r: 40; opacity: 0; stroke-width: 1; }
+}
+
+/* Facility Analytics Dashboard */
+.analytics-card {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 8px;
+    font-size: 0.75rem;
+    position: relative;
+    transition: all 0.2s ease;
+    cursor: help;
+}
+
+.analytics-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+}
+
+.analytics-card.is-best {
+    border-color: var(--accent-blue);
+    background: rgba(0, 210, 255, 0.05);
+    box-shadow: 0 0 10px rgba(0, 210, 255, 0.2);
+}
+
+.best-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    background: var(--accent-blue);
+    color: var(--bg-dark);
+    font-size: 8px;
+    font-weight: 800;
+    padding: 2px 4px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    animation: bounce 0.5s ease infinite alternate;
+}
+
+.ewt-val { font-weight: 700; margin-left: 4px; }
+.ewt-green { color: var(--status-green); }
+.ewt-yellow { color: var(--status-yellow); }
+.ewt-red { color: var(--status-red); }
+
+@keyframes bounce {
+    from { transform: translateY(0); }
+    to { transform: translateY(-2px); }
+}
+
+/* Facility Markers */
+.facility-marker {
+    cursor: help;
+    transition: all 0.3s ease;
+    filter: drop-shadow(0 0 8px currentColor);
+}
+
+.status-green { color: var(--status-green); fill: var(--status-green); opacity: 0.8; }
+.status-yellow { color: var(--status-yellow); fill: var(--status-yellow); opacity: 0.9; }
+.status-red { color: var(--status-red); fill: var(--status-red); opacity: 1; }
+
+.facility-label {
+    fill: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    pointer-events: none;
+    text-anchor: middle;
+}
+
+.recommended-glow {
+    animation: recommend-pulse 2s infinite;
+}
+
+@keyframes recommend-pulse {
+    0% { filter: drop-shadow(0 0 5px var(--accent-blue)); }
+    50% { filter: drop-shadow(0 0 20px var(--accent-blue)); }
+    100% { filter: drop-shadow(0 0 5px var(--accent-blue)); }
 }

@@ -18,6 +18,7 @@
             <g id="all-paths"></g>
             <g id="active-path-original"></g>
             <g id="active-path-optimized"></g>
+            <g id="facility-layer"></g>
             <g id="nodes"></g>
             <g id="people-layer"></g>
             <g id="user-layer"></g>
@@ -25,6 +26,9 @@
 
         <!-- Left Navigation Panel -->
         <div id="control-panel" class="panel">
+            <div class="panel-handler left" onclick="toggleLeftPanel()">
+                <span>&lsaquo;</span>
+            </div>
             <h1>Venue IQ</h1>
             
             <div class="destinations">
@@ -48,6 +52,11 @@
                 <h3>Navigation Stream</h3>
                 <p>Target: <span id="info-dest" style="color: var(--text-primary);">--</span></p>
                 <p>ETA: <span id="info-eta" style="color: var(--text-primary);">--</span></p>
+                <div id="facility-recommendation" style="margin-top: 15px; padding-top: 15px; border-top: 1px solid var(--glass-border);">
+                    <h5 style="color: var(--accent-blue); margin-bottom: 8px; font-size: 0.85rem; text-transform: uppercase;">Smart Recommendation</h5>
+                    <p id="rec-facility" style="font-weight: 600; font-size: 1.1rem; color: var(--text-primary); margin-bottom: 4px;">--</p>
+                    <p id="rec-reason" style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;">Select a facility to optimize route.</p>
+                </div>
                 <p id="info-crowd-density" class="alert-text"></p>
                 <p id="info-congestion" class="alert-text alert-red"></p>
                 <p id="info-alert" class="alert-text alert-blue"></p>
@@ -56,6 +65,9 @@
 
         <!-- Right Dashboard -->
         <div class="dashboard-panel">
+            <div class="panel-handler right" onclick="toggleRightPanel()">
+                <span>&rsaquo;</span>
+            </div>
             <div class="dash-section">
                 <h4>Environment Controls</h4>
                 <div class="control-item">
@@ -92,6 +104,13 @@
             </div>
 
             <div class="dash-section">
+                <h4>Facility Analytics</h4>
+                <div id="facility-analytics-grid" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; max-height: 250px; overflow-y: auto; padding-right: 5px;">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+
+            <div class="dash-section">
                 <h4>Real-time Telemetry</h4>
                 <div class="feedback-card">
                     <div class="feedback-row">
@@ -116,9 +135,9 @@
         <!-- Legend -->
         <div class="legend">
             <div class="legend-item"><span class="dot" style="background: var(--user-color);"></span> User</div>
-            <div class="legend-item"><span class="dot" style="background: var(--friend-color);"></span> Friend</div>
-            <div class="legend-item"><span class="line" style="background: var(--path-active);"></span> Fast Route</div>
-            <div class="legend-item"><span class="line" style="background: var(--accent-pink); border: 1px dashed white;"></span> Congested</div>
+            <div class="legend-item"><span class="dot" style="background: var(--status-green);"></span> Open</div>
+            <div class="legend-item"><span class="dot" style="background: var(--status-yellow);"></span> Busy</div>
+            <div class="legend-item"><span class="dot" style="background: var(--status-red);"></span> High Queue</div>
         </div>
     </div>
 

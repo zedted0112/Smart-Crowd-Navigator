@@ -2,10 +2,24 @@ const SVGNs = "http://www.w3.org/2000/svg";
 
 const nodes = {
     gate: { x: 150, y: 400, label: "Gate (Entry)" },
-    food: { x: 450, y: 700, label: "Food Court" },
-    washroom: { x: 450, y: 100, label: "Washroom" },
-    seat: { x: 800, y: 400, label: "Seat A12" },
     centerJunction: { x: 450, y: 400, label: "" }
+};
+
+const facilities = {
+    washroom: [
+        { id: 'W1', x: 80, y: 80, label: 'W1', queue: [], serving: [], capacity: 2, serviceTime: 120 },
+        { id: 'W2', x: 80, y: 720, label: 'W2', queue: [], serving: [], capacity: 2, serviceTime: 120 },
+        { id: 'W3', x: 920, y: 80, label: 'W3', queue: [], serving: [], capacity: 2, serviceTime: 120 },
+        { id: 'W4', x: 920, y: 720, label: 'W4', queue: [], serving: [], capacity: 2, serviceTime: 120 },
+        { id: 'W5', x: 450, y: 200, label: 'W5 (Main)', queue: [], serving: [], capacity: 4, serviceTime: 100 }
+    ],
+    food: [
+        { id: 'F1', x: 450, y: 750, label: 'F1 (Main)', queue: [], serving: [], capacity: 3, serviceTime: 180 },
+        { id: 'F2', x: 50, y: 400, label: 'F2', queue: [], serving: [], capacity: 2, serviceTime: 150 },
+        { id: 'F3', x: 950, y: 400, label: 'F3', queue: [], serving: [], capacity: 2, serviceTime: 150 },
+        { id: 'F4', x: 450, y: 50, label: 'F4', queue: [], serving: [], capacity: 2, serviceTime: 150 },
+        { id: 'F5', x: 850, y: 650, label: 'F5', queue: [], serving: [], capacity: 2, serviceTime: 150 }
+    ]
 };
 
 const routes = {
@@ -48,8 +62,8 @@ function init() {
     drawObstacles();
     drawSeats();
     drawGrid();
-    drawBackgroundPaths();
     drawNodes();
+    drawFacilities();
     initPeople();
 
     const svg = document.getElementById('venue-svg');
@@ -145,7 +159,6 @@ function init() {
         }
     });
 
-    // Map Interactivity for manual congestion
     svg.addEventListener('click', (e) => {
         const pt = svg.createSVGPoint();
         pt.x = e.clientX;
@@ -169,18 +182,13 @@ function init() {
 
             const clickedNode = { x: svgP.x, y: svgP.y };
             const snappedNode = snapTargetNode(svgP.x, svgP.y);
-            console.log(`-- Custom Navigation Activated --`);
-            console.log(`Raw Click Coord: [${Math.floor(clickedNode.x)}, ${Math.floor(clickedNode.y)}]`);
-            console.log(`Snapped Node: [${Math.floor(snappedNode.x)}, ${Math.floor(snappedNode.y)}]`);
-            
-            drawTargetPing(clickedNode.x, clickedNode.y); // Dynamically render exactly on the user's specific target!
+            drawTargetPing(clickedNode.x, clickedNode.y); 
             navigateToCustom(snappedNode, clickedNode);
         }
     });
 
-    // Start Simulation Loops
     requestAnimationFrame(animatePeople);
-    setInterval(updateGridDensity, 2000); // Slower, smoother decision intervals
+    setInterval(updateGridDensity, 2000); 
 }
 
 function adjustPeopleCount() {
@@ -269,26 +277,6 @@ function isValidCell(c, r) {
     return c >= 0 && c < COLS && r >= 0 && r < ROWS;
 }
 
-function drawBackgroundPaths() {
-    const bgGroup = document.getElementById('all-paths');
-    if (!bgGroup) return; // safety
-    bgGroup.innerHTML = '';
-
-    const allSegments = [
-        [nodes.gate, nodes.centerJunction],
-        [nodes.centerJunction, nodes.food],
-        [nodes.centerJunction, nodes.washroom],
-        [nodes.centerJunction, nodes.seat],
-        [nodes.gate, { x: 150, y: 700 }], [{ x: 150, y: 700 }, nodes.food],
-        [nodes.gate, { x: 150, y: 100 }], [{ x: 150, y: 100 }, nodes.washroom],
-        [nodes.centerJunction, { x: 450, y: 100 }], [{ x: 450, y: 100 }, { x: 800, y: 100 }], [{ x: 800, y: 100 }, nodes.seat]
-    ];
-
-    allSegments.forEach(seg => {
-        bgGroup.appendChild(createSVGElement('path', { d: pathArrayToString(seg), class: 'path-base' }));
-    });
-}
-
 function drawGrid() {
     const layer = document.getElementById('grid-layer');
     layer.innerHTML = '';
@@ -299,8 +287,8 @@ function drawGrid() {
             const rect = createSVGElement('rect', {
                 x: cell.x, y: cell.y,
                 width: CELL_SIZE, height: CELL_SIZE,
-                fill: 'rgba(255, 50, 50, 0)', // fully transparent initially
-                stroke: 'rgba(200, 200, 200, 0.1)', // subtle grid lines
+                fill: 'rgba(255, 50, 50, 0)', 
+                stroke: 'rgba(200, 200, 200, 0.1)', 
                 strokeWidth: 1
             });
             cell.svgRect = rect;
@@ -312,7 +300,6 @@ function drawGrid() {
 function drawSeats() {
     const seatGroup = document.getElementById('seats-layer');
     seatGroup.innerHTML = '';
-    // Draw seat blocks near Seat node
     for (let row = 0; row < 6; row++) {
         for (let col = 0; col < 6; col++) {
             const x = 750 + col * 20;
@@ -322,7 +309,6 @@ function drawSeats() {
             }));
         }
     }
-    // Draw seat blocks near Food node
     for (let row = 0; row < 4; row++) {
         for (let col = 0; col < 8; col++) {
             const x = 500 + col * 20;
@@ -359,16 +345,119 @@ function drawObstacles() {
 
 function drawNodes() {
     const nodeGroup = document.getElementById('nodes');
+    if (!nodeGroup) return;
     nodeGroup.innerHTML = '';
     
-    // Render static specific location hubs
-    for (const key in nodes) {
-        if(key === 'centerJunction') continue;
-        const n = nodes[key];
-        nodeGroup.appendChild(createSVGElement('circle', {
-            cx: n.x, cy: n.y, r: 8, class: 'node-circ'
-        }));
-    }
+    const n = nodes.gate;
+    nodeGroup.appendChild(createSVGElement('circle', {
+        cx: n.x, cy: n.y, r: 8, class: 'node-circ'
+    }));
+}
+
+function drawFacilities() {
+    const fGroup = document.getElementById('facility-layer');
+    if (!fGroup) return;
+    fGroup.innerHTML = '';
+    
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            const container = createSVGElement('g', {
+                id: `fac-${f.id}`,
+                class: 'facility-marker status-green'
+            });
+            
+            const rect = createSVGElement('rect', {
+                x: f.x - 12, y: f.y - 12, width: 24, height: 24, rx: 6
+            });
+            
+            const label = createSVGElement('text', {
+                x: f.x, y: f.y + 28, class: 'facility-label'
+            });
+            label.textContent = f.label;
+            
+            container.appendChild(rect);
+            fGroup.appendChild(container);
+            fGroup.appendChild(label);
+        });
+    });
+    initDashboardUI();
+}
+
+function initDashboardUI() {
+    const grid = document.getElementById('facility-analytics-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            const card = document.createElement('div');
+            card.id = `dash-card-${f.id}`;
+            card.className = 'analytics-card';
+            card.innerHTML = `
+                <div style="font-weight: 600; color: var(--accent-blue); display: flex; justify-content: space-between; align-items: center;">
+                    ${f.label}
+                    <span id="badge-${f.id}" class="best-badge" style="display: none;">Best</span>
+                </div>
+                <div style="margin-top: 4px; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; color: var(--text-secondary); font-size: 0.7rem;">
+                    <span>Q: <span id="dash-q-${f.id}">0</span></span>
+                    <span>S: <span id="dash-s-${f.id}">0</span></span>
+                </div>
+                <div style="margin-top: 4px; border-top: 1px solid var(--glass-border); padding-top: 4px;">
+                    Wait: <span id="dash-ewt-${f.id}" class="ewt-val ewt-green">0s</span>
+                </div>
+            `;
+            grid.appendChild(card);
+        });
+    });
+}
+
+function updateFacilityMetrics() {
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            const el = document.getElementById(`fac-${f.id}`);
+            if (el) {
+                el.classList.remove('status-green', 'status-yellow', 'status-red');
+                const total = f.queue.length + f.serving.length;
+                if (total < f.capacity) el.classList.add('status-green');
+                else if (total < f.capacity * 3) el.classList.add('status-yellow');
+                else el.classList.add('status-red');
+            }
+        });
+    });
+    updateDashboardUI();
+}
+
+function updateDashboardUI() {
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            const qCount = f.queue.length;
+            const sCount = f.serving.length;
+            
+            const dashQ = document.getElementById(`dash-q-${f.id}`);
+            const dashS = document.getElementById(`dash-s-${f.id}`);
+            const dashEWT = document.getElementById(`dash-ewt-${f.id}`);
+            const card = document.getElementById(`dash-card-${f.id}`);
+            const badge = document.getElementById(`badge-${f.id}`);
+
+            if (dashQ) dashQ.innerText = qCount;
+            if (dashS) dashS.innerText = sCount;
+            
+            const ewt = Math.round((qCount / f.capacity) * (f.serviceTime / 50));
+            if (dashEWT) {
+                dashEWT.innerText = `${ewt}s`;
+                dashEWT.className = 'ewt-val ' + (ewt < 10 ? 'ewt-green' : (ewt < 30 ? 'ewt-yellow' : 'ewt-red'));
+            }
+
+            const isBest = userAvatar.finalDestination && userAvatar.finalDestination.id === f.id;
+            if (card) {
+                if (isBest) card.classList.add('is-best');
+                else card.classList.remove('is-best');
+            }
+            if (badge) badge.style.display = isBest ? 'block' : 'none';
+        });
+    });
+    
+    if (Math.random() < 0.05) transmitToCloud();
 }
 
 function drawTargetPing(x, y) {
@@ -379,16 +468,15 @@ function drawTargetPing(x, y) {
         id: 'click-target-ping',
         cx: x, cy: y, r: 6, class: 'target-ping'
     });
-    // Insert behind floating menus but securely above the primary arrays
     svg.insertBefore(ping, document.getElementById('seats-layer'));
 }
 
 function snapTargetNode(px, py) {
     const segments = [
-        { x1: 150, y1: 400, x2: 450, y2: 400 }, // Gate-Center
-        { x1: 450, y1: 400, x2: 800, y2: 400 }, // Center-Seat
-        { x1: 450, y1: 400, x2: 450, y2: 700 }, // Center-Food
-        { x1: 450, y1: 100, x2: 450, y2: 400 }  // Center-Washroom
+        { x1: 150, y1: 400, x2: 450, y2: 400 }, 
+        { x1: 450, y1: 400, x2: 800, y2: 400 }, 
+        { x1: 450, y1: 400, x2: 450, y2: 700 }, 
+        { x1: 450, y1: 100, x2: 450, y2: 400 }  
     ];
     
     let closestPt = { x: px, y: py, dist: Infinity };
@@ -431,7 +519,6 @@ function getEdgePenalty(x, y) {
 let nextPersonId = 0;
 let currentScenario = 'normal';
 
-// Avatar State tracking
 let userAvatar = {
     active: false,
     x: 150,
@@ -446,7 +533,6 @@ let userAvatar = {
     finalDestination: null
 };
 
-// Friend wandering entity
 let friendAvatar = {
     x: 750,
     y: 200,
@@ -458,8 +544,6 @@ let friendAvatar = {
 };
 
 function navigateToFriend() {
-    console.log("-- Friend Target Activated via UI --");
-    
     let fEl = document.getElementById('friend-avatar-dot');
     if (!fEl) {
         fEl = createSVGElement('circle', {
@@ -475,7 +559,6 @@ function navigateToFriend() {
     drawTargetPing(friendAvatar.x, friendAvatar.y);
     navigateToCustom(snappedFriend, friendAvatar);
     
-    // Lock snapshots to natively evaluate dynamically later!
     friendAvatar.routeSnapshotX = friendAvatar.x;
     friendAvatar.routeSnapshotY = friendAvatar.y;
     currentDestination = 'friend';
@@ -486,7 +569,7 @@ function navigateToFriend() {
 function spawnPerson() {
     let startX = 0;
     let startY = 0;
-    let corridor = -1; // -1 means general
+    let corridor = -1; 
     let isScenarioFocused = false;
 
     if (CORRIDOR_BIAS) {
@@ -501,22 +584,19 @@ function spawnPerson() {
         }
     }
 
-    if (corridor === 0) { // Gate -> Center 
+    if (corridor === 0) {
         startX = 150 + Math.random() * 300; startY = 400 + (Math.random() * 40 - 20);
-    } else if (corridor === 1) { // Center -> Washroom
+    } else if (corridor === 1) {
         startX = 450 + (Math.random() * 40 - 20); startY = 100 + Math.random() * 300;
-    } else if (corridor === 2) { // Center -> Food
+    } else if (corridor === 2) {
         startX = 450 + (Math.random() * 40 - 20); startY = 400 + Math.random() * 300;
-    } else if (corridor === 3) { // Center -> Seat
+    } else if (corridor === 3) {
         startX = 450 + Math.random() * 350; startY = 400 + (Math.random() * 40 - 20);
     } else {
-        // Fallback open space
         startX = Math.random() * 800 + 100; startY = Math.random() * 600 + 100;
     }
     
-    if (isPointInObstacle(startX, startY)) {
-        return spawnPerson(); // Recursively bounce generation safely out of restricted statics
-    }
+    if (isPointInObstacle(startX, startY)) return spawnPerson();
 
     const p = {
         id: nextPersonId++,
@@ -526,11 +606,24 @@ function spawnPerson() {
         ty: startY,
         speed: Math.random() * 0.1 + 0.05,
         isScenarioFocused: isScenarioFocused,
-        corridor: corridor
+        corridor: corridor,
+        state: 'MOVING',
+        targetFacility: null,
+        patience: Math.random() 
     };
 
-    pickTarget(p);
+    const rng = Math.random();
+    if (currentScenario === 'washroom') {
+        p.goal = rng < 0.8 ? 'washroom' : (rng < 0.9 ? 'food' : 'roam');
+    } else if (currentScenario === 'food') {
+        p.goal = rng < 0.8 ? 'food' : (rng < 0.9 ? 'washroom' : 'roam');
+    } else {
+        if (rng < 0.4) p.goal = 'washroom';
+        else if (rng < 0.7) p.goal = 'food';
+        else p.goal = 'roam';
+    }
 
+    pickTarget(p);
     people.push(p);
 
     const circle = createSVGElement('circle', {
@@ -538,168 +631,115 @@ function spawnPerson() {
     });
 
     const peopleGroup = document.getElementById('people-layer');
-    peopleGroup.appendChild(circle);
+    if (peopleGroup) peopleGroup.appendChild(circle);
 }
 
 function pickTarget(p) {
-    if (p.corridor === 0) {
-        // Gate -> Center constraint
-        p.tx = 150 + Math.random() * 300;
-        p.ty = 400 + (Math.random() * 40 - 20);
-    } else if (p.corridor === 1) {
-        // Center -> Washroom constraint
-        p.tx = 450 + (Math.random() * 40 - 20);
-        p.ty = 100 + Math.random() * 300;
-    } else if (p.corridor === 2) {
-        // Center -> Food constraint
-        p.tx = 450 + (Math.random() * 40 - 20);
-        p.ty = 400 + Math.random() * 300;
-    } else if (p.corridor === 3) {
-        // Center -> Seat constraint
-        p.tx = 450 + Math.random() * 350;
-        p.ty = 400 + (Math.random() * 40 - 20);
+    let chosenFac = null;
+
+    if (p.goal === 'washroom' || p.goal === 'food') {
+        // Agents use the same intelligent scoring as the user to pick their target
+        chosenFac = findBestFacility(p.goal);
+    }
+
+    if (chosenFac) {
+        p.tx = chosenFac.x + (Math.random() * 20 - 10);
+        p.ty = chosenFac.y + (Math.random() * 20 - 10);
+        p.targetFacility = chosenFac;
     } else {
-        // Random meander off-path safely nearby
-        p.tx = Math.max(50, Math.min(950, p.x + (Math.random() * 200 - 100)));
-        p.ty = Math.max(50, Math.min(750, p.y + (Math.random() * 200 - 100)));
+        // Roaming/Fallback behavior
+        const corridors = [
+            { x: 150 + Math.random() * 300, y: 400 + (Math.random() * 40 - 20) }, // Gate-Center
+            { x: 450 + (Math.random() * 40 - 20), y: 100 + Math.random() * 300 }, // Center-Washroom
+            { x: 450 + (Math.random() * 40 - 20), y: 400 + Math.random() * 300 }, // Center-Food
+            { x: 450 + Math.random() * 350, y: 400 + (Math.random() * 40 - 20) }  // Center-Seat
+        ];
+        const target = corridors[Math.floor(Math.random() * corridors.length)];
+        p.tx = target.x;
+        p.ty = target.y;
+        p.targetFacility = null;
     }
     
-    if (isPointInObstacle(p.tx, p.ty)) pickTarget(p); // Dodge routing inside walls natively!
+    if (isPointInObstacle(p.tx, p.ty)) pickTarget(p);
 }
 
 function initPeople() {
     const peopleGroup = document.getElementById('people-layer');
     peopleGroup.innerHTML = '';
-    people.length = 0; // reset
+    people.length = 0; 
     nextPersonId = 0;
-
-    for (let i = 0; i < NUM_PEOPLE; i++) {
-        spawnPerson();
-    }
+    for (let i = 0; i < NUM_PEOPLE; i++) spawnPerson();
 }
 
 function animatePeople() {
+    processFacilityQueues();
+    const deadAgents = [];
+
     people.forEach(p => {
-        const dx = p.tx - p.x;
-        const dy = p.ty - p.y;
-        const dist = Math.hypot(dx, dy);
-
-        if (dist < 5) {
-            pickTarget(p);
-        } else {
-            p.x += (dx / dist) * p.speed * SPEED_MULTIPLIER;
-            p.y += (dy / dist) * p.speed * SPEED_MULTIPLIER;
-        }
-
         const el = document.getElementById(`person-${p.id}`);
-        if(el) {
-            el.setAttribute('cx', p.x);
-            el.setAttribute('cy', p.y);
+        if (!el) return;
+
+        if (p.state === 'MOVING') {
+            const dx = p.tx - p.x;
+            const dy = p.ty - p.y;
+            const dist = Math.hypot(dx, dy);
+
+            if (dist < 25) { 
+                if (p.targetFacility) {
+                    p.state = 'QUEUING';
+                    p.targetFacility.queue.push(p);
+                    console.log(`[Simulation] Agent ${p.id} joined queue at ${p.targetFacility.id}`);
+                } else {
+                    pickTarget(p);
+                }
+            } else {
+                p.x += (dx / dist) * p.speed * SPEED_MULTIPLIER;
+                p.y += (dy / dist) * p.speed * SPEED_MULTIPLIER;
+            }
+        } else if (p.state === 'QUEUING') {
+            if (Math.random() < 0.005 * (1 - p.patience)) {
+                p.state = 'MOVING';
+                if (p.targetFacility) {
+                    const qIdx = p.targetFacility.queue.indexOf(p);
+                    if (qIdx > -1) p.targetFacility.queue.splice(qIdx, 1);
+                }
+                p.targetFacility = null;
+                pickTarget(p);
+            }
+        } else if (p.state === 'SERVING') {
+            p.serviceTicks -= 1 * SPEED_MULTIPLIER;
+            if (p.serviceTicks <= 0) deadAgents.push(p);
         }
+
+        el.style.opacity = (p.state === 'SERVING') ? '0.3' : '1';
+        el.setAttribute('cx', p.x);
+        el.setAttribute('cy', p.y);
     });
-    
-    /* 
-       TEMPORARY: Disabling user circle movement to resolve bouncing issues.
-       The path line rendering remains active. 
-    */
-    /*
-    if (userAvatar.active && !userAvatar.isPaused) {
-        if (userAvatar.state === 'MOVING_FINAL' && userAvatar.finalDestination) {
-            const dx = userAvatar.finalDestination.x - userAvatar.x;
-            const dy = userAvatar.finalDestination.y - userAvatar.y;
-            const dist = Math.hypot(dx, dy);
 
-            if (dist < 4) {
-                userAvatar.x = userAvatar.finalDestination.x;
-                userAvatar.y = userAvatar.finalDestination.y;
-                userAvatar.active = false;
-                userAvatar.finalDestination = null;
-                const uEl = document.getElementById('user-avatar-dot');
-                if (uEl) uEl.remove();
-            } else {
-                userAvatar.x += (dx / dist) * userAvatar.speed * SPEED_MULTIPLIER;
-                userAvatar.y += (dy / dist) * userAvatar.speed * SPEED_MULTIPLIER;
-            }
-        } 
-        else if (userAvatar.path.length > 0 && userAvatar.targetIndex < userAvatar.path.length) {
-            const targetNode = userAvatar.path[userAvatar.targetIndex];
-            const dx = targetNode.x - userAvatar.x;
-            const dy = targetNode.y - userAvatar.y;
-            const dist = Math.hypot(dx, dy);
-
-            if (dist < 2) {
-                userAvatar.x = targetNode.x;
-                userAvatar.y = targetNode.y;
-                userAvatar.targetIndex++;
-                
-                if (userAvatar.state === 'DETOURING' || userAvatar.state === 'PUSHING') {
-                    const isCorridor = (targetNode.x === 150 || targetNode.x === 450 || targetNode.x === 800) || 
-                                       (targetNode.y === 100 || targetNode.y === 400 || targetNode.y === 700);
-                    if (userAvatar.state === 'PUSHING' || isCorridor) {
-                        userAvatar.state = 'MOVING';
-                        userAvatar.cooldownTicks = 1; 
-                        const el = document.getElementById('user-avatar-dot');
-                        if (el) el.classList.remove('avatar-pushing');
-                    }
-                }
-
-                if (userAvatar.targetIndex >= userAvatar.path.length) {
-                    if (userAvatar.finalDestination) {
-                        const distToFinal = Math.hypot(userAvatar.finalDestination.x - userAvatar.x, userAvatar.finalDestination.y - userAvatar.y);
-                        if (distToFinal > 4) {
-                            userAvatar.state = 'MOVING_FINAL';
-                        } else {
-                            userAvatar.active = false;
-                            const uEl = document.getElementById('user-avatar-dot');
-                            if (uEl) uEl.remove();
-                        }
-                    } else {
-                        userAvatar.active = false;
-                        const uEl = document.getElementById('user-avatar-dot');
-                        if (uEl) uEl.remove();
-                    }
-                }
-            } else {
-                userAvatar.x += (dx / dist) * userAvatar.speed * SPEED_MULTIPLIER;
-                userAvatar.y += (dy / dist) * userAvatar.speed * SPEED_MULTIPLIER;
-            }
+    deadAgents.forEach(p => {
+        const idx = people.indexOf(p);
+        if (idx > -1) people.splice(idx, 1);
+        if (p.targetFacility) {
+            const sIdx = p.targetFacility.serving.indexOf(p);
+            if (sIdx > -1) p.targetFacility.serving.splice(sIdx, 1);
         }
-
-        if (userAvatar.active) {
-            let uEl = document.getElementById('user-avatar-dot');
-            if (!uEl) {
-                uEl = createSVGElement('circle', {
-                    id: 'user-avatar-dot', r: 8, class: 'user-dot'
-                });
-                document.getElementById('user-layer').appendChild(uEl);
-            }
-            uEl.setAttribute('cx', userAvatar.x);
-            uEl.setAttribute('cy', userAvatar.y);
-        }
-    }
-    */
+        const el = document.getElementById(`person-${p.id}`);
+        if (el) el.remove();
+        spawnPerson();
+    });
 
     requestAnimationFrame(animatePeople);
 }
 
-
 function updateGridDensity() {
-    // Reset all counts
     for (let c = 0; c < COLS; c++) {
-        for (let r = 0; r < ROWS; r++) {
-            grid[c][r].count = 0;
-        }
+        for (let r = 0; r < ROWS; r++) grid[c][r].count = 0;
     }
-
-    // Tally people per cell
     people.forEach(p => {
         const cell = getCell(p.x, p.y);
         cell.count++;
     });
 
-    let gridChanged = false;
-
-    // Update cell states and visuals
     for (let c = 0; c < COLS; c++) {
         for (let r = 0; r < ROWS; r++) {
             const cell = grid[c][r];
@@ -708,9 +748,6 @@ function updateGridDensity() {
 
             if (cell.blocked !== shouldBeBlocked) {
                 cell.blocked = shouldBeBlocked;
-                gridChanged = true;
-
-                // Subtly highlight blocked cells
                 if (shouldBeBlocked) {
                     cell.svgRect.setAttribute('fill', isManualBlock ? 'rgba(139, 92, 246, 0.3)' : 'rgba(236, 72, 153, 0.3)');
                     cell.svgRect.setAttribute('stroke', isManualBlock ? 'rgba(139, 92, 246, 0.6)' : 'rgba(236, 72, 153, 0.6)');
@@ -721,392 +758,104 @@ function updateGridDensity() {
             }
         }
     }
-
-    evalAnalytics();
-
-    // Friend Dynamic Drift Tracking natively explicitly seamlessly flawlessly!
-    if (userAvatar.active && currentDestination === 'friend' && friendAvatar.routeSnapshotX !== null) {
-        let driftDist = Math.hypot(friendAvatar.x - friendAvatar.routeSnapshotX, friendAvatar.y - friendAvatar.routeSnapshotY);
-        if (driftDist > 40) {
-            console.log("Friend drifted out of bounds logically! Re-routing dynamically natively!");
-            const snappedFriend = snapTargetNode(friendAvatar.x, friendAvatar.y);
-            navigateToCustom(snappedFriend, friendAvatar);
-            friendAvatar.routeSnapshotX = friendAvatar.x;
-            friendAvatar.routeSnapshotY = friendAvatar.y;
-            return;
-        }
-    }
-
-    // Mid-journey dynamic localized routing and waiting evaluation
-    if (userAvatar.active && (!userAvatar.isPaused || userAvatar.state === 'WAITING' || userAvatar.state === 'DECIDING')) {
-        if (!SMART_ROUTING_ENABLED) { 
-            userAvatar.isPaused = false; 
-            return; 
-        }
-        
-        if (userAvatar.cooldownTicks > 0) {
-            userAvatar.cooldownTicks--;
-            return;
-        }
-        
-        if (userAvatar.state === 'DETOURING' || userAvatar.state === 'MOVING_FINAL' || userAvatar.state === 'PUSHING') {
-            return;
-        }
-
-        const currentPosNode = { x: userAvatar.x, y: userAvatar.y };
-        if (userAvatar.targetIndex < userAvatar.path.length) {
-            const targetNode = userAvatar.path[userAvatar.targetIndex];
-            const cell = getCell(targetNode.x, targetNode.y);
-            const congestion = cell.count;
-            
-            // RULE 1: HARD BLOCK RULE (Blind entry prevention)
-            const isActuallyBlocked = isSegmentBlocked(currentPosNode, targetNode);
-            
-            if (isActuallyBlocked || congestion > 3) {
-                userAvatar.isPaused = true;
-                currentlyBlockedLine = [currentPosNode, targetNode];
-
-                // RULE 2: DECISION MODE
-                if (userAvatar.state !== 'WAITING' && userAvatar.state !== 'DECIDING') {
-                    userAvatar.state = 'WAITING';
-                    userAvatar.waitTicks = 1; 
-
-                    const el = document.getElementById('user-avatar-dot');
-                    if(el) el.classList.add('avatar-waiting');
-                    
-                    const congestionEl = document.getElementById('info-congestion');
-                    const alertEl = document.getElementById('info-alert');
-                    congestionEl.className = 'alert-text alert-red';
-                    congestionEl.innerText = "Congestion Detected";
-                    alertEl.style.display = 'block';
-                    alertEl.className = 'alert-text alert-blue';
-                    alertEl.innerText = "Evaluating path options...";
-                    
-                    redrawActiveLines();
-                    return;
-                }
-
-                // RULE 3: WAIT LOGIC (Re-check after wait)
-                if (userAvatar.state === 'WAITING' && userAvatar.waitTicks > 0) {
-                    userAvatar.waitTicks = 0;
-                    userAvatar.state = 'DECIDING';
-                    
-                    const alertEl = document.getElementById('info-alert');
-                    alertEl.innerText = "Searching for alternate routes...";
-                    return; 
-                }
-
-                // RULE 4: DETOUR LOGIC (Trigger A*)
-                if (userAvatar.state === 'DECIDING') {
-                    // Lock position exactly during transition
-                    const routeSubslice = [{ x: userAvatar.x, y: userAvatar.y }, ...userAvatar.path.slice(userAvatar.targetIndex)];
-                    const result = calculateSafeRoute(routeSubslice);
-                    
-                    if (result && result.path && result.path.length > 1) {
-                        userAvatar.path = result.path;
-                        activeOptimizedPath = userAvatar.path;
-                        userAvatar.targetIndex = 1;
-                        userAvatar.state = (result.type === 'a-star') ? 'DETOURING' : 'PUSHING';
-                    }
-
-                    userAvatar.cooldownTicks = 1; 
-
-                    const alertEl = document.getElementById('info-alert');
-                    alertEl.style.display = 'block';
-                    alertEl.className = 'alert-text alert-blue';
-                    
-                    if (result.type === 'a-star') {
-                        alertEl.innerText = "Rerouting to avoid crowd";
-                        DETOUR_MODE = 'A* Search';
-                    } else if (congestion < 15) {
-                        alertEl.innerText = "Proceeding with caution";
-                        const el = document.getElementById('user-avatar-dot');
-                        if (el) el.classList.remove('avatar-waiting');
-                    } else {
-                        alertEl.innerText = "Waiting for path to clear...";
-                        userAvatar.state = 'WAITING';
-                        userAvatar.isPaused = true;
-                        return;
-                    }
-
-                    userAvatar.isPaused = false; 
-                    redrawActiveLines();
-                    evalAnalytics();
-                }
-            } else if (userAvatar.state === 'WAITING' || userAvatar.state === 'DECIDING') {
-                userAvatar.state = 'MOVING';
-                userAvatar.waitTicks = 0;
-                userAvatar.isPaused = false;
-                currentlyBlockedLine = null;
-                userAvatar.cooldownTicks = 1;
-
-                const el = document.getElementById('user-avatar-dot');
-                if(el) el.classList.remove('avatar-waiting');
-                
-                const congestionEl = document.getElementById('info-congestion');
-                const alertEl = document.getElementById('info-alert');
-                congestionEl.className = 'alert-text alert-green';
-                congestionEl.innerText = "Optimal Flow";
-                alertEl.innerText = "Resuming journey";
-
-                redrawActiveLines();
-                setTimeout(()=> { if(userAvatar.active && userAvatar.state !== 'WAITING') alertEl.style.display = 'none'; }, 2000);
-            }
-        }
-    }
-}
-
-function evalAnalytics() {
-    let count = 0;
-    if (activeOptimizedPath && activeOptimizedPath.length > 0) {
-        // approximate tally traversing array intersections
-        for (let i = 0; i < activeOptimizedPath.length - 1; i++) {
-            const p1 = activeOptimizedPath[i];
-            const p2 = activeOptimizedPath[i + 1];
-            const steps = Math.max(1, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
-            for (let j = 0; j <= steps; j++) {
-                const x = p1.x + (p2.x - p1.x) * (j / steps);
-                const y = p1.y + (p2.y - p1.y) * (j / steps);
-                const cell = getCell(x, y);
-                count += cell.count;
-            }
-        }
-    }
-    const trueCount = Math.floor(count / 8); // deduplicate overlapping cells
-    const docCount = document.getElementById('feed-people-path');
-    if (docCount) docCount.innerText = trueCount;
-
-    const feedRoute = document.getElementById('feed-route-type');
-    if (feedRoute) feedRoute.innerText = SMART_ROUTING_ENABLED ? (currentlyBlockedLine ? `Detour (${DETOUR_MODE})` : "Primary") : "Primary (Forced)";
-    const feedCongestion = document.getElementById('feed-congestion');
-    if (feedCongestion) {
-        if(currentlyBlockedLine) feedCongestion.innerText = 'High';
-        else feedCongestion.innerText = 'Clear';
-    }
+    updateFacilityMetrics();
 }
 
 function setScenario(scenario) {
-    applyScenario(scenario);
-}
-
-function applyScenario(scenario) {
     currentScenario = scenario;
+    
+    // Core Reset: Clear all internal facility states
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            f.queue = [];
+            f.serving = [];
+        });
+    });
 
-    // Update button visuals
+    // Reset UI buttons
     document.querySelectorAll('.btn-group .btn').forEach(b => b.classList.remove('active'));
     document.getElementById(`btn-${scenario}`).classList.add('active');
-
-    // Re-initialize people map
+    
+    // Wipe and re-init fresh crowd with scenario-biased goals
     initPeople();
-
-    // Force immediate grid and density calculation so it doesn't wait
     updateGridDensity();
-}
 
-// Path Verification against Grid
-function isSegmentHardBlocked(p1, p2) {
-    const steps = Math.max(10, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
-    if (steps <= 0) return false;
-    for (let j = 0; j <= steps; j++) {
-        const x = p1.x + (p2.x - p1.x) * (j / steps);
-        const y = p1.y + (p2.y - p1.y) * (j / steps);
-        if (isPointInObstacle(x, y)) return true;
-        
-        const cell = getCell(x, y);
-        if (manualBlocks.has(`${cell.col},${cell.row}`)) return true; 
-    }
-    return false;
+    console.log(`[Scenario Sync] Switched to ${scenario}. Analytics and population reset.`);
 }
 
 function isSegmentBlocked(p1, p2) {
     const steps = Math.max(10, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
-    if (steps <= 0) return false;
     for (let j = 0; j <= steps; j++) {
         const x = p1.x + (p2.x - p1.x) * (j / steps);
         const y = p1.y + (p2.y - p1.y) * (j / steps);
-        
-        if (isPointInObstacle(x, y)) return true; // Static wall bounds
-        
+        if (isPointInObstacle(x, y)) return true;
         const cell = getCell(x, y);
         if (cell.blocked) return true;
     }
     return false;
 }
 
-function getLocalDetour(p1, p2, offset = 100) {
-    const detour = [];
-    const isHorizontal = Math.abs(p1.x - p2.x) > Math.abs(p1.y - p2.y);
-    
-    if (isHorizontal) {
-        let yOffset = p1.y < 400 ? offset : -offset;
-        detour.push({x: p1.x, y: p1.y + yOffset});
-        detour.push({x: p2.x, y: p2.y + yOffset});
-    } else {
-        let xOffset = p1.x < 500 ? offset : -offset;
-        detour.push({x: p1.x + xOffset, y: p1.y});
-        detour.push({x: p2.x + xOffset, y: p2.y});
-    }
-    detour.push({x: p2.x, y: p2.y}); 
-    return detour;
-}
-
-function calculatePathScore(pathArr) {
-    let dist = 0;
-    let crowd = 0;
-    let edgeCost = 0;
-    let obstacleCost = 0;
-    
-    for (let i = 0; i < pathArr.length - 1; i++) {
-        let p1 = pathArr[i], p2 = pathArr[i+1];
-        dist += Math.hypot(p2.x - p1.x, p2.y - p1.y);
-        
-        const steps = Math.max(1, Math.abs(p2.x - p1.x), Math.abs(p2.y - p1.y)) / 10;
-        for (let j = 0; j <= steps; j++) {
-            const x = p1.x + (p2.x - p1.x) * (j / steps);
-            const y = p1.y + (p2.y - p1.y) * (j / steps);
-            
-            if (isPointInObstacle(x, y)) obstacleCost += 5000;
-            edgeCost += getEdgePenalty(x, y);
-            
-            const cell = getCell(x, y);
-            crowd += cell.count;
-            if (manualBlocks.has(`${cell.col},${cell.row}`)) crowd += 20; 
-        }
-    }
-    crowd = Math.floor(crowd / 8);
-    edgeCost = Math.floor(edgeCost / 8);
-    
-    // Penalize boundary tracking mathematically heavily removing Edge Hugging!
-    const turns = Math.max(0, pathArr.length - 2);
-    
-    return dist * 1 + crowd * 50 + turns * 200 + edgeCost + obstacleCost;
-}
-
-function isPathHardBlocked(pathArr) {
-    for (let i = 0; i < pathArr.length - 1; i++) {
-        if (isSegmentBlocked(pathArr[i], pathArr[i+1])) return true;
-    }
-    return false;
-}
-
-function generateTurnCandidates(p1, p2) {
-    const candidates = [];
-    const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
-    const stepSize = 100; // Lookahead interval (2 grids)
-    
-    candidates.push({x: p1.x, y: p1.y});
-    for (let d = stepSize; d < dist - 10; d += stepSize) {
-        candidates.push({
-            x: p1.x + (p2.x - p1.x) * (d / dist),
-            y: p1.y + (p2.y - p1.y) * (d / dist)
-        });
-    }
-    return candidates;
-}
-
-// --- NEW A* GRID ENGINE ---
-function getGridCost(col, row) {
+// --- CORE NAVIGATION ENGINE ---
+function getGridCost(col, row, ignoreThreshold = false) {
     if (!isValidCell(col, row)) return Infinity;
     const cell = grid[col][row];
-    
-    // Check manual blocks or static obstacles
     if (manualBlocks.has(`${col},${row}`)) return Infinity;
     if (isPointInObstacle(cell.cx, cell.cy)) return Infinity;
 
-    // RULE 5: FORCE AVOID RULE (> 10 people = Blocked)
-    const CRITICAL_THRESHOLD = 15; // Adjusted based on simulation density
-    if (cell.count > CRITICAL_THRESHOLD) return Infinity;
+    const CRITICAL_THRESHOLD = 15;
+    if (!ignoreThreshold && cell.count > CRITICAL_THRESHOLD) return Infinity;
 
-    // RULE 7: COST UPDATE (cost = base + (congestion * 5))
-    const baseCost = CELL_SIZE;
-    const congestionCost = cell.count * 15; // Multiplier higher to satisfy "intelligent avoidance"
-    
-    return baseCost + congestionCost;
+    return CELL_SIZE + (cell.count * 15);
 }
 
-function findAStarPath(start, target) {
+function findAStarPath(start, target, ignoreThreshold = false) {
     const startCell = getCell(start.x, start.y);
     const targetCell = getCell(target.x, target.y);
+    if (startCell === targetCell) return [{ x: start.x, y: start.y }, { x: target.x, y: target.y }];
 
     const openSet = [startCell];
     const cameFrom = new Map();
     const gScore = new Map();
     const fScore = new Map();
-
     const cellKey = (c) => `${c.col},${c.row}`;
 
     gScore.set(cellKey(startCell), 0);
     fScore.set(cellKey(startCell), Math.hypot(targetCell.cx - startCell.cx, targetCell.cy - startCell.cy));
 
     while (openSet.length > 0) {
-        // Find node in openSet with lowest fScore
         let current = openSet.reduce((a, b) => (fScore.get(cellKey(a)) < fScore.get(cellKey(b)) ? a : b));
 
         if (current === targetCell) {
-            // Reconstruct path
             const rawPath = [{ x: target.x, y: target.y }];
             let curr = current;
             while (cameFrom.has(cellKey(curr))) {
                 curr = cameFrom.get(cellKey(curr));
                 rawPath.unshift({ x: curr.cx, y: curr.cy });
             }
-            // Ensure first point is the actual user position for smooth start
             rawPath[0] = { x: start.x, y: start.y };
             
-            // PRUNING: Remove nodes that are too close to prevent "bouncing" or jitter
             const prunedPath = [rawPath[0]];
             for (let i = 1; i < rawPath.length; i++) {
                 const last = prunedPath[prunedPath.length - 1];
-                const d = Math.hypot(rawPath[i].x - last.x, rawPath[i].y - last.y);
-                if (d > 5 || i === rawPath.length - 1) {
+                if (Math.hypot(rawPath[i].x - last.x, rawPath[i].y - last.y) > 5 || i === rawPath.length - 1) {
                     prunedPath.push(rawPath[i]);
                 }
             }
-    return smoothAStarPath(prunedPath);
-}
-
-function smoothAStarPath(path) {
-    if (path.length <= 2) return path;
-    
-    let smoothed = [path[0]];
-    let current = 0;
-    
-    while (current < path.length - 1) {
-        let bestVisible = current + 1;
-        
-        // Look ahead to find the furthest visible node
-        for (let next = current + 2; next < path.length; next++) {
-            if (!isSegmentBlocked(path[current], path[next])) {
-                bestVisible = next;
-            } else {
-                break; // Occlusion found, stop lookahead
-            }
+            return smoothAStarPath(prunedPath);
         }
-        
-        smoothed.push(path[bestVisible]);
-        current = bestVisible;
-    }
-    
-    return smoothed;
-}
 
         openSet.splice(openSet.indexOf(current), 1);
 
-        // 8 Neighbors
         for (let dc = -1; dc <= 1; dc++) {
             for (let dr = -1; dr <= 1; dr++) {
                 if (dc === 0 && dr === 0) continue;
-                
                 const nc = current.col + dc;
                 const nr = current.row + dr;
-                
                 if (isValidCell(nc, nr)) {
                     const neighbor = grid[nc][nr];
-                    const moveCost = getGridCost(nc, nr);
-                    
+                    const moveCost = getGridCost(nc, nr, ignoreThreshold);
                     if (moveCost === Infinity) continue;
 
-                    // Diagonal penalty
                     const weight = (dc !== 0 && dr !== 0) ? 1.414 : 1;
                     const tentativeGScore = gScore.get(cellKey(current)) + (moveCost * weight);
 
@@ -1120,30 +869,38 @@ function smoothAStarPath(path) {
             }
         }
     }
-    return null; // No path found
+    return null;
+}
+
+function smoothAStarPath(path) {
+    if (path.length <= 2) return path;
+    let smoothed = [path[0]];
+    let current = 0;
+    while (current < path.length - 1) {
+        let bestVisible = current + 1;
+        for (let next = current + 2; next < path.length; next++) {
+            if (!isSegmentBlocked(path[current], path[next])) bestVisible = next;
+            else break;
+        }
+        smoothed.push(path[bestVisible]);
+        current = bestVisible;
+    }
+    return smoothed;
 }
 
 function calculateSafeRoute(baseRoute) {
-    if (!SMART_ROUTING_ENABLED) {
-        return { path: baseRoute, blockedLine: null, type: 'primary' };
-    }
+    if (!SMART_ROUTING_ENABLED) return { path: baseRoute, blockedLine: null, type: 'primary' };
+    const start = baseRoute[0], target = baseRoute[baseRoute.length - 1];
 
-    const start = baseRoute[0];
-    const target = baseRoute[baseRoute.length - 1];
+    const strictPath = findAStarPath(start, target, false);
+    if (strictPath) return { path: strictPath, blockedLine: null, type: 'a-star' };
 
-    // Attempt A* for highly intelligent avoidance
-    const aStarPath = findAStarPath(start, target);
-    
-    if (aStarPath) {
-        return { path: aStarPath, blockedLine: null, type: 'a-star' };
-    }
+    const relaxedPath = findAStarPath(start, target, true);
+    if (relaxedPath) return { path: relaxedPath, blockedLine: [start, target], type: 'a-star' };
 
-    // Fallback if A* fails due to hard blocks (RULE 6: Controlled Pass-through)
-    console.warn("A* failed to find path. Falling back to primary with caution.");
-    return { path: baseRoute, blockedLine: [baseRoute[0], baseRoute[1]], type: 'primary' };
+    return { path: baseRoute, blockedLine: [start, target], type: 'primary' };
 }
 
-// UI Map Integration
 function pathArrayToString(pathArr) {
     return pathArr.map((pt, i) => (i === 0 ? `M ${pt.x} ${pt.y}` : `L ${pt.x} ${pt.y}`)).join(' ');
 }
@@ -1157,134 +914,90 @@ function redrawActiveLines() {
         origGroup.appendChild(createSVGElement('path', { d: pathArrayToString(currentlyBlockedLine), class: 'path-blocked' }));
     }
     optGroup.appendChild(createSVGElement('path', { d: pathArrayToString(userAvatar.path), class: 'path-optimized' }));
-    
-    // Draw explicit Final Vector dotted tracks tracking completely organically correctly
-    if (userAvatar.finalDestination && userAvatar.path.length > 0) {
-        const lastNode = userAvatar.path[userAvatar.path.length - 1];
-        const dStr = `M ${lastNode.x} ${lastNode.y} L ${userAvatar.finalDestination.x} ${userAvatar.finalDestination.y}`;
-        optGroup.appendChild(createSVGElement('path', { d: dStr, class: 'path-final-dotted' }));
-    }
 }
 
 function navigateToCustom(snappedDestNode, clickedDestNode) {
-    currentDestination = 'custom';
     userAvatar.finalDestination = clickedDestNode;
-    const startPoint = (userAvatar.active && !userAvatar.isPaused) ? { x: userAvatar.x, y: userAvatar.y } : nodes.gate;
-    
-    // Build explicit synthetic vector strictly mapped to Center Hub bounding
-    let customNodes = [startPoint];
-    const isOnSameXAxis = startPoint.x === snappedDestNode.x && startPoint.x === nodes.centerJunction.x;
-    const isOnSameYAxis = startPoint.y === snappedDestNode.y && startPoint.y === nodes.centerJunction.y;
-    
-    if (!isOnSameXAxis && !isOnSameYAxis) {
-        customNodes.push(nodes.centerJunction);
-    }
-    
-    customNodes.push(snappedDestNode);
-
-    // Purge and launch precisely identically to static node navigation tracking
-    const existingAvatar = document.getElementById('user-avatar-dot');
-    if (existingAvatar) existingAvatar.remove();
-    
-    const result = calculateSafeRoute(customNodes);
-    currentlyBlockedLine = result.blockedLine;
-    activeOptimizedPath = result.path;
-    
-    DETOUR_MODE = result.type;
-    const selectMode = document.getElementById('ctrl-detour-mode');
-    if(selectMode && result.type !== 'primary') selectMode.value = result.type;
-
-    userAvatar.x = startPoint.x;
-    userAvatar.y = startPoint.y;
-    userAvatar.path = activeOptimizedPath;
-    userAvatar.targetIndex = 1;
+    const startPoint = { x: userAvatar.x, y: userAvatar.y };
+    const result = calculateSafeRoute([startPoint, snappedDestNode]);
+    userAvatar.path = result.path;
+    userAvatar.targetIndex = 0;
     userAvatar.active = true;
-    userAvatar.isPaused = false;
-    userAvatar.state = result.type !== 'primary' ? 'DETOURING' : 'MOVING';
-    userAvatar.cooldownTicks = 1;
-    userAvatar.waitTicks = 0;
-
     redrawActiveLines();
-    evalAnalytics();
-    
-    document.getElementById('route-info').style.display = 'block';
-    
-    const alertEl = document.getElementById('info-alert');
-    const congestionEl = document.getElementById('info-congestion');
-    if (currentlyBlockedLine) {
-        congestionEl.className = 'alert-text alert-red';
-        congestionEl.innerText = "High Congestion Detected";
-        alertEl.style.display = 'block';
-        alertEl.className = 'alert-text alert-blue';
-        alertEl.innerText = result.type === 'full' ? "Taking full alternate safe route" : "Taking local detour to avoid congestion";
-    } else {
-        congestionEl.className = 'alert-text alert-green';
-        congestionEl.innerText = "Path Clear";
-        alertEl.style.display = 'none';
-    }
 }
 
-function navigateTo(destKey) {
-    currentDestination = destKey;
-    userAvatar.finalDestination = null;
-    const baseNodes = routes[destKey];
+function navigateTo(destType) {
+    const best = (destType === 'washroom' || destType === 'food') ? findBestFacility(destType) : null;
+    if (best) {
+        userAvatar.finalDestination = { x: best.x, y: best.y, id: best.id, label: best.label };
+    } else if (destType === 'seat') {
+        userAvatar.finalDestination = { x: 800, y: 400, label: "Seat A12" };
+    }
     
-    // Purge old Avatar layout if resetting
-    const existingAvatar = document.getElementById('user-avatar-dot');
-    if (existingAvatar) existingAvatar.remove();
-    
-    const result = calculateSafeRoute(baseNodes);
-    currentlyBlockedLine = result.blockedLine;
-    activeOptimizedPath = result.path;
-    
-    // Sync UI explicitly based on AI math picking
-    DETOUR_MODE = result.type;
-    const selectMode = document.getElementById('ctrl-detour-mode');
-    if(selectMode && result.type !== 'primary') selectMode.value = result.type;
-
-    // Init Avatar Run Sequence strictly mapped to newly drawn path
-    userAvatar.x = nodes.gate.x;
-    userAvatar.y = nodes.gate.y;
-    userAvatar.path = activeOptimizedPath;
-    userAvatar.targetIndex = 1;
+    if (!userAvatar.finalDestination) return;
+    const result = calculateSafeRoute([{ x: userAvatar.x, y: userAvatar.y }, userAvatar.finalDestination]);
+    userAvatar.path = result.path;
+    userAvatar.targetIndex = 0;
     userAvatar.active = true;
-    userAvatar.isPaused = false;
-    userAvatar.state = result.type !== 'primary' ? 'DETOURING' : 'MOVING';
-    userAvatar.cooldownTicks = 1;
-    userAvatar.waitTicks = 0;
-
-    redrawActiveLines();
-    evalAnalytics();
-    updateUI(destKey);
-}
-
-function updateUI(destKey) {
     document.getElementById('route-info').style.display = 'block';
-    const nameMap = { food: 'Food Court', washroom: 'Washroom', seat: 'Seat A12' };
-    document.getElementById('info-dest').innerText = nameMap[destKey];
-    document.getElementById('info-eta').innerText = currentlyBlockedLine ? "~3 mins" : "~2 mins";
-
-    // Clear legacy elements not used safely
-    document.getElementById('info-crowd-density').style.display = 'none';
-
-    const congestionEl = document.getElementById('info-congestion');
-    const alertEl = document.getElementById('info-alert');
-
-    if (currentlyBlockedLine) {
-        congestionEl.className = 'alert-text alert-red';
-        congestionEl.innerText = "High Congestion Area";
-        alertEl.style.display = 'block';
-        alertEl.className = 'alert-text alert-blue';
-        alertEl.innerText = "Taking local detour to avoid congestion";
-    } else {
-        congestionEl.className = 'alert-text alert-green';
-        congestionEl.innerText = "Clear path ahead";
-        alertEl.style.display = 'none';
-        alertEl.className = 'alert-text';
-    }
+    document.getElementById('info-dest').innerText = userAvatar.finalDestination.label;
+    redrawActiveLines();
 }
 
-// Bootstrap
+function findBestFacility(type) {
+    const options = facilities[type];
+    const startPos = { x: userAvatar.x, y: userAvatar.y };
+    let best = null, minScore = Infinity;
+
+    options.forEach(f => {
+        const path = findAStarPath(startPos, { x: f.x, y: f.y }, true);
+        if (!path) return;
+        const dist = calculatePathDistance(path);
+        const ewt = (f.queue.length / f.capacity) * (f.serviceTime / 50); 
+        const score = dist + (ewt * 10.0);
+        if (score < minScore) { minScore = score; best = f; }
+    });
+    return best;
+}
+
+function calculatePathDistance(path) {
+    let d = 0;
+    for (let i = 0; i < path.length - 1; i++) d += Math.hypot(path[i+1].x - path[i].x, path[i+1].y - path[i].y);
+    return d;
+}
+
+function processFacilityQueues() {
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            if (f.serving.length < f.capacity && f.queue.length > 0) {
+                const nextAgent = f.queue.shift();
+                nextAgent.state = 'SERVING';
+                nextAgent.serviceTicks = f.serviceTime;
+                f.serving.push(nextAgent);
+            }
+        });
+    });
+}
+
+function transmitToCloud() {
+    const payload = { timestamp: Date.now(), facilities: {} };
+    ['washroom', 'food'].forEach(type => {
+        facilities[type].forEach(f => {
+            payload.facilities[f.id] = { queue: f.queue.length, serving: f.serving.length };
+        });
+    });
+    console.log("[Firebase Sync Hub]", payload);
+}
+function toggleLeftPanel() {
+    document.getElementById('control-panel').classList.toggle('collapsed');
+}
+
+function toggleRightPanel() {
+    document.querySelector('.dashboard-panel').classList.toggle('collapsed');
+}
+
 window.onload = init;
 window.navigateTo = navigateTo;
 window.setScenario = setScenario;
+window.toggleLeftPanel = toggleLeftPanel;
+window.toggleRightPanel = toggleRightPanel;
