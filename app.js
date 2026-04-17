@@ -788,6 +788,31 @@ function animatePeople() {
         spawnPerson();
     });
 
+    // --- User Avatar Movement ---
+    if (userAvatar.active && userAvatar.path && userAvatar.path.length > 0) {
+        const targetPt = userAvatar.path[userAvatar.targetIndex];
+        const dx = targetPt.x - userAvatar.x;
+        const dy = targetPt.y - userAvatar.y;
+        const dist = Math.hypot(dx, dy);
+
+        if (dist < 5) {
+            // Reached current node
+            userAvatar.targetIndex++;
+            if (userAvatar.targetIndex >= userAvatar.path.length) {
+                // Reached final destination
+                userAvatar.active = false;
+                userAvatar.path = [];
+                userAvatar.targetIndex = 0;
+            }
+        } else {
+            // Move toward current target node
+            const moveStep = userAvatar.speed * SPEED_MULTIPLIER * 5; // User moves faster than agents
+            userAvatar.x += (dx / dist) * moveStep;
+            userAvatar.y += (dy / dist) * moveStep;
+        }
+        updateUserAvatarViz();
+    }
+
     requestAnimationFrame(animatePeople);
 }
 
