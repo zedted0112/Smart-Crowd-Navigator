@@ -106,56 +106,126 @@ function init() {
 
     let isDraggingFriend = false;
     let friendWasDragged = false;
+    let isDraggingUser = false;
+    let userWasDragged = false;
+    let dragStartX = 0;
+    let dragStartY = 0;
+    let lastInteractionTime = 0;
 
-    svg.addEventListener('mousedown', (e) => {
-        if (!document.getElementById('friend-avatar-dot')) return;
+    svg.addEventListener('pointerdown', (e) => {
         const pt = svg.createSVGPoint();
         pt.x = e.clientX; pt.y = e.clientY;
         const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-        
-        let dist = Math.hypot(svgP.x - friendAvatar.x, svgP.y - friendAvatar.y);
-        if (dist <= 25) { 
-            isDraggingFriend = true;
-            friendWasDragged = false;
-            document.getElementById('friend-avatar-dot').style.cursor = 'grabbing';
-            e.stopPropagation();
+
+        // Check Friend Drag
+        const fEl = document.getElementById('friend-avatar-dot');
+        if (fEl) {
+            let distF = Math.hypot(svgP.x - friendAvatar.x, svgP.y - friendAvatar.y);
+            if (distF <= 25) { 
+                isDraggingFriend = true;
+                friendWasDragged = false;
+                fEl.style.cursor = 'grabbing';
+                e.stopPropagation();
+                return;
+            }
+        }
+
+        // Check User Drag
+        if (userAvatar.active) {
+            let distU = Math.hypot(svgP.x - userAvatar.x, svgP.y - userAvatar.y);
+            if (distU <= 25) {
+                isDraggingUser = true;
+                userWasDragged = false;
+                const uEl = document.getElementById('user-avatar-dot');
+                if (uEl) uEl.style.cursor = 'grabbing';
+                
+                dragStartX = svgP.x;
+                dragStartY = svgP.y;
+                
+                e.preventDefault();
+                e.stopPropagation();
+            }
         }
     });
 
-    svg.addEventListener('mousemove', (e) => {
+    svg.addEventListener('pointermove', (e) => {
+        const pt = svg.createSVGPoint();
+        pt.x = e.clientX; pt.y = e.clientY;
+        const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
+
         if (isDraggingFriend) {
-            const pt = svg.createSVGPoint();
-            pt.x = e.clientX; pt.y = e.clientY;
-            const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
-            
             friendAvatar.x = Math.max(20, Math.min(980, svgP.x)); 
             friendAvatar.y = Math.max(20, Math.min(780, svgP.y));
             friendWasDragged = true;
             
             const fEl = document.getElementById('friend-avatar-dot');
-            if (fEl) {
-                fEl.setAttribute('cx', friendAvatar.x);
-                fEl.setAttribute('cy', friendAvatar.y);
-            }
+            if (fEl) { fEl.setAttribute('cx', friendAvatar.x); fEl.setAttribute('cy', friendAvatar.y); }
             drawTargetPing(friendAvatar.x, friendAvatar.y);
             
-            if (userAvatar.state === 'MOVING_FINAL' || currentDestination === 'friend') {
-                redrawActiveLines();
+            if (currentDestination === 'friend') redrawActiveLines();
+        }
+
+        if (isDraggingUser) {
+            const moveDist = Math.hypot(svgP.x - dragStartX, svgP.y - dragStartY);
+            if (moveDist > 5) {
+                userWasDragged = true;
+                userAvatar.x = Math.max(10, Math.min(990, svgP.x)); 
+                userAvatar.y = Math.max(10, Math.min(790, svgP.y));
+                
+                const uEl = document.getElementById('user-avatar-dot');
+                if (uEl) uEl.classList.add('dragging');
+                
+                updateUserAvatarViz();
+                
+                // Live re-computation (using unsnapped position for visual trail)
+                if (userAvatar.finalDestination) {
+                    const result = calculateSafeRoute([{ x: userAvatar.x, y: userAvatar.y }, userAvatar.finalDestination]);
+                    userAvatar.path = result.path;
+                    userAvatar.targetIndex = 0;
+                    redrawActiveLines();
+                }
             }
         }
     });
 
-    svg.addEventListener('mouseup', () => {
+    svg.addEventListener('pointerup', () => {
         if (isDraggingFriend) {
             isDraggingFriend = false;
             document.getElementById('friend-avatar-dot').style.cursor = 'grab';
-            
             const snappedFriend = snapTargetNode(friendAvatar.x, friendAvatar.y);
             navigateToCustom(snappedFriend, friendAvatar);
             friendAvatar.routeSnapshotX = friendAvatar.x;
             friendAvatar.routeSnapshotY = friendAvatar.y;
-            
             setTimeout(() => friendWasDragged = false, 100);
+        }
+
+        if (isDraggingUser) {
+            isDraggingUser = false;
+            const uEl = document.getElementById('user-avatar-dot');
+            if (uEl) {
+                uEl.style.cursor = 'grab';
+                uEl.classList.remove('dragging');
+            }
+
+            // SNAP ON DROP ONLY
+            const cell = getCell(userAvatar.x, userAvatar.y);
+            userAvatar.x = cell.cx;
+            userAvatar.y = cell.cy;
+            updateUserAvatarViz();
+
+            if (isPointInObstacle(userAvatar.x, userAvatar.y)) {
+                // Potential fallback logic
+            }
+            
+            // Full re-compute trigger
+            if (currentDestination === 'washroom' || currentDestination === 'food') {
+                navigateTo(currentDestination); 
+            } else {
+                navigateToCustom(userAvatar.finalDestination, userAvatar.finalDestination);
+            }
+
+            setTimeout(() => userWasDragged = false, 200);
+            lastInteractionTime = Date.now();
         }
     });
 
@@ -165,7 +235,9 @@ function init() {
         pt.y = e.clientY;
         const svgP = pt.matrixTransform(svg.getScreenCTM().inverse());
         
-        if (friendWasDragged) return;
+        // Temporal separation check
+        if (Date.now() - lastInteractionTime < 400) return;
+        if (friendWasDragged || userWasDragged) return;
 
         if (e.shiftKey) {
             const cell = getCell(svgP.x, svgP.y);
@@ -174,12 +246,21 @@ function init() {
             else manualBlocks.add(key);
             updateGridDensity();
         } else {
+            // Priority 1: Check proximity to User
+            const userDist = Math.hypot(svgP.x - userAvatar.x, svgP.y - userAvatar.y);
+            if (userDist < 30) {
+                drawTargetPing(userAvatar.x, userAvatar.y);
+                return; // User clicked themselves, ignore navigation
+            }
+
+            // Priority 2: Check proximity to Friend
             const friendDist = Math.hypot(svgP.x - friendAvatar.x, svgP.y - friendAvatar.y);
             if (friendDist < 30) {
                 navigateToFriend();
                 return;
             }
 
+            // Priority 3: Navigate to Map Point
             const clickedNode = { x: svgP.x, y: svgP.y };
             const snappedNode = snapTargetNode(svgP.x, svgP.y);
             drawTargetPing(clickedNode.x, clickedNode.y); 
@@ -226,8 +307,8 @@ function resetSimulation() {
     document.getElementById('btn-washroom').classList.remove('active');
     document.getElementById('btn-food').classList.remove('active');
     
-    const existingAvatar = document.getElementById('user-avatar-dot');
-    if (existingAvatar) existingAvatar.remove();
+    const userLayer = document.getElementById('user-layer');
+    if (userLayer) userLayer.innerHTML = ''; 
     userAvatar.active = false;
     userAvatar.isPaused = false;
     userAvatar.state = 'MOVING';
@@ -472,29 +553,8 @@ function drawTargetPing(x, y) {
 }
 
 function snapTargetNode(px, py) {
-    const segments = [
-        { x1: 150, y1: 400, x2: 450, y2: 400 }, 
-        { x1: 450, y1: 400, x2: 800, y2: 400 }, 
-        { x1: 450, y1: 400, x2: 450, y2: 700 }, 
-        { x1: 450, y1: 100, x2: 450, y2: 400 }  
-    ];
-    
-    let closestPt = { x: px, y: py, dist: Infinity };
-    
-    segments.forEach(seg => {
-        let isHoriz = seg.y1 === seg.y2;
-        if (isHoriz) {
-            let snapX = Math.max(seg.x1, Math.min(seg.x2, px));
-            let d = Math.hypot(px - snapX, py - seg.y1);
-            if (d < closestPt.dist) closestPt = { x: snapX, y: seg.y1, dist: d };
-        } else {
-            let snapY = Math.max(seg.y1, Math.min(seg.y2, py));
-            let d = Math.hypot(px - seg.x1, py - snapY);
-            if (d < closestPt.dist) closestPt = { x: seg.x1, y: snapY, dist: d };
-        }
-    });
-    
-    return { x: closestPt.x, y: closestPt.y };
+    const cell = getCell(px, py);
+    return { x: cell.cx, y: cell.cy };
 }
 
 function isPointInObstacle(x, y) {
@@ -923,6 +983,7 @@ function navigateToCustom(snappedDestNode, clickedDestNode) {
     userAvatar.path = result.path;
     userAvatar.targetIndex = 0;
     userAvatar.active = true;
+    updateUserAvatarViz();
     redrawActiveLines();
 }
 
@@ -939,9 +1000,30 @@ function navigateTo(destType) {
     userAvatar.path = result.path;
     userAvatar.targetIndex = 0;
     userAvatar.active = true;
+    updateUserAvatarViz();
     document.getElementById('route-info').style.display = 'block';
     document.getElementById('info-dest').innerText = userAvatar.finalDestination.label;
     redrawActiveLines();
+}
+
+function updateUserAvatarViz() {
+    // Ensure only one user-avatar-dot exists
+    let existing = document.getElementById('user-avatar-dot');
+    if (existing && existing.parentElement?.id !== 'user-layer') {
+        existing.remove();
+        existing = null;
+    }
+    
+    let uEl = existing;
+    if (!uEl) {
+        uEl = createSVGElement('circle', {
+            id: 'user-avatar-dot', r: 8, class: 'user-dot',
+            style: 'cursor: grab;'
+        });
+        document.getElementById('user-layer').appendChild(uEl);
+    }
+    uEl.setAttribute('cx', userAvatar.x);
+    uEl.setAttribute('cy', userAvatar.y);
 }
 
 function findBestFacility(type) {
