@@ -43,7 +43,7 @@ export const state = {
         detourMode: 'local',
         blockedThreshold: 3,
         currentScenario: 'normal',
-        useAI: true
+        useAI: false
     },
     
     ui: {

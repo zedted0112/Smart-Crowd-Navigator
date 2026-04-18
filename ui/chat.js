@@ -78,20 +78,25 @@ export function removeThinkingIndicator(id) {
 export function parseIntent(text) {
     text = text.toLowerCase();
   
-    if (text.includes("washroom") || text.includes("toilet") || text.includes("wc") || text.includes("pee")) {
+    // Check for seat first to avoid "eat" collision in "seat"
+    if (text.includes("seat") || text.includes("chair") || text.includes("assigned")) {
+        return { intent: "NAVIGATE_TO", type: "seat" };
+    }
+
+    if (text.includes("washroom") || text.includes("toilet") || text.includes("restroom") || text.includes("pee") || text.includes("wc")) {
       return { intent: "FIND_WASHROOM" };
     }
   
-    if (text.includes("food") || text.includes("eat") || text.includes("hungry") || text.includes("restaurant") || text.includes("buffet")) {
+    // Use word boundary for "eat" to avoid "seat" collision
+    const words = text.split(/\s+/);
+    const hasFoodKeywords = words.some(w => ["food", "hungry", "restaurant", "buffet", "dining", "court"].includes(w)) || text.includes("food court") || words.includes("eat");
+    
+    if (hasFoodKeywords) {
       return { intent: "FIND_FOOD" };
     }
   
     if (text.includes("friend") || text.includes("locate") || text.includes("track")) {
       return { intent: "FIND_FRIEND" };
-    }
-
-    if (text.includes("seat") || text.includes("chair")) {
-        return { intent: "NAVIGATE_TO", type: "seat" };
     }
   
     return { intent: "UNKNOWN" };
@@ -196,4 +201,96 @@ function getVenueContext() {
         facilities: facilities,
         userPos: { x: Math.round(state.userAvatar.x), y: Math.round(state.userAvatar.y) }
     };
+}
+
+export function initChatDraggable() {
+    const widget = document.getElementById('chat-widget');
+    const header = document.getElementById('chat-header');
+    
+    if (typeof updateChatStatus === 'function') updateChatStatus();
+    
+    // Bind AI Toggle
+    const badge = document.getElementById('ai-toggle-badge');
+    if (badge) {
+        badge.addEventListener('mousedown', (e) => {
+            e.stopPropagation(); // Don't drag or minimize when clicking badge
+        });
+        badge.addEventListener('click', (e) => {
+            e.stopPropagation(); // Don't minimize/expand chat when clicking badge
+            toggleAI();
+        });
+    }
+    
+    let isDragging = false;
+    let startX, startY;
+    let initialRight, initialTop;
+
+    header.addEventListener('mousedown', (e) => {
+        // Only allow dragging if clicking the header itself, not children like the toggle button
+        if (e.target.id === 'chat-toggle-icon' || e.target.closest('#chat-toggle-icon')) return;
+        
+        isDragging = true;
+        widget.classList.add('dragging');
+        
+        const rect = widget.getBoundingClientRect();
+        startX = e.clientX;
+        startY = e.clientY;
+        
+        // Calculate current position relative to the right and top of the viewport
+        initialRight = window.innerWidth - rect.right;
+        initialTop = rect.top;
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+        
+        e.preventDefault();
+    });
+
+    function onMouseMove(e) {
+        if (!isDragging) return;
+        
+        const dx = startX - e.clientX;
+        const dy = e.clientY - startY;
+        
+        widget.style.bottom = 'auto'; // Disable bottom if active
+        widget.style.right = (initialRight + dx) + 'px';
+        widget.style.top = (initialTop + dy) + 'px';
+        widget.style.transform = 'none'; // Clear centering transform once moved
+    }
+
+    function onMouseUp() {
+        if (!isDragging) return;
+        isDragging = false;
+        widget.classList.remove('dragging');
+        document.removeEventListener('mousemove', onMouseMove);
+    }
+}
+
+export function updateChatStatus() {
+    const statusEl = document.getElementById('chat-status');
+    if (!statusEl) return;
+    
+    if (state.settings.useAI) {
+        statusEl.textContent = 'Online • Gemini AI Mode';
+        statusEl.style.color = '#fff';
+        const b = document.getElementById('ai-toggle-badge');
+        if (b) {
+            b.textContent = 'AI ON';
+            b.className = 'ai-badge-on';
+        }
+    } else {
+        statusEl.textContent = 'Online • Local Mode';
+        statusEl.style.color = 'rgba(255, 255, 255, 0.5)';
+        const b = document.getElementById('ai-toggle-badge');
+        if (b) {
+            b.textContent = 'AI OFF';
+            b.className = 'ai-badge-off';
+        }
+    }
+}
+
+export function toggleAI() {
+    state.settings.useAI = !state.settings.useAI;
+    updateChatStatus();
+    addChatMessage(`System: Gemini AI is now ${state.settings.useAI ? 'ENABLED' : 'DISABLED. Using local intent parsing.'}`, 'assistant');
 }

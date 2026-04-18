@@ -7,7 +7,7 @@ import { animatePeople } from '../agents/movement.js';
 import { updateFacilityMetrics, initDashboardUI } from '../ui/dashboard.js';
 import { calculateSafeRoute } from '../core/pathfinding.js';
 import { setupPointerEvents, toggleLeftPanel, toggleRightPanel } from '../ui/events.js';
-import { toggleChat, handleChatKey, sendChatMessage } from '../ui/chat.js';
+import { toggleChat, handleChatKey, sendChatMessage, initChatDraggable } from '../ui/chat.js';
 import { COLS, ROWS, CELL_SIZE } from '../core/constants.js';
 import { navigateTo, navigateToFriend } from '../agents/user.js';
 
@@ -28,8 +28,8 @@ export function init() {
     drawNodes(document.getElementById('nodes'));
     drawFacilities(document.getElementById('facility-layer'));
     
-    initDashboardUI();
     initPeople();
+    initChatDraggable();
 
     const svg = document.getElementById('venue-svg');
     if (svg) {
