@@ -139,6 +139,33 @@
             <div class="legend-item"><span class="dot" style="background: var(--status-yellow);"></span> Busy</div>
             <div class="legend-item"><span class="dot" style="background: var(--status-red);"></span> High Queue</div>
         </div>
+
+        <!-- Chat Assistant Widget -->
+        <div id="chat-widget" class="chat-minimized">
+            <div id="chat-header" onclick="toggleChat()">
+                <div class="chat-header-info">
+                    <div class="chat-avatar">AI</div>
+                    <div>
+                        <div style="font-weight: 600; font-size: 0.9rem;">Venue Assistant</div>
+                        <div style="font-size: 0.7rem; opacity: 0.7;">Online • Gemini AI Mode</div>
+                    </div>
+                </div>
+                <div id="chat-toggle-icon">▲</div>
+            </div>
+            <div id="chat-body" style="display: none;">
+                <div id="chat-messages">
+                    <div class="message assistant">
+                        Hello! I'm your Smart Venue Assistant. How can I help you navigate the crowd today?
+                    </div>
+                </div>
+                <div id="chat-input-area">
+                    <input type="text" id="chat-input" placeholder="Type a message (e.g. 'find food')..." onkeypress="handleChatKey(event)">
+                    <button id="chat-send" onclick="sendChatMessage()">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="app.js"></script>

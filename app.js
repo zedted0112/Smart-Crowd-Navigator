@@ -399,8 +399,9 @@ function drawSeats() {
         for (let col = 0; col < 6; col++) {
             const x = 750 + col * 20;
             const y = 350 + row * 20;
+            const isAssigned = userAvatar.assignedSeat && x === userAvatar.assignedSeat.x && y === userAvatar.assignedSeat.y;
             seatGroup.appendChild(createSVGElement('rect', {
-                x: x, y: y, width: 12, height: 12, rx: 2, class: 'seat-dot'
+                x: x, y: y, width: 12, height: 12, rx: 2, class: isAssigned ? 'seat-dot seat-assigned' : 'seat-dot'
             }));
         }
     }
@@ -408,8 +409,9 @@ function drawSeats() {
         for (let col = 0; col < 8; col++) {
             const x = 500 + col * 20;
             const y = 650 + row * 20;
+            const isAssigned = userAvatar.assignedSeat && x === userAvatar.assignedSeat.x && y === userAvatar.assignedSeat.y;
             seatGroup.appendChild(createSVGElement('rect', {
-                x: x, y: y, width: 12, height: 12, rx: 2, class: 'seat-dot'
+                x: x, y: y, width: 12, height: 12, rx: 2, class: isAssigned ? 'seat-dot seat-assigned' : 'seat-dot'
             }));
         }
     }
@@ -660,7 +662,8 @@ let userAvatar = {
     state: 'MOVING', 
     waitTicks: 0,
     cooldownTicks: 0,
-    finalDestination: null
+    finalDestination: null,
+    assignedSeat: { x: 810, y: 390, label: "VIP Seat A12" }
 };
 
 let friendAvatar = {
@@ -1199,7 +1202,7 @@ function navigateTo(destType) {
     if (best) {
         userAvatar.finalDestination = { x: best.x, y: best.y, id: best.id, label: best.label };
     } else if (destType === 'seat') {
-        userAvatar.finalDestination = { x: 800, y: 400, label: "Seat A12" };
+        userAvatar.finalDestination = userAvatar.assignedSeat || { x: 810, y: 390, label: "VIP Seat A12" };
     }
     
     if (!userAvatar.finalDestination) return;
@@ -1344,3 +1347,168 @@ window.navigateTo = navigateTo;
 window.setScenario = setScenario;
 window.toggleLeftPanel = toggleLeftPanel;
 window.toggleRightPanel = toggleRightPanel;
+window.toggleChat = toggleChat;
+window.sendChatMessage = sendChatMessage;
+window.handleChatKey = handleChatKey;
+
+// --- Chat Assistant System ---
+let USE_AI = true;
+let isChatOpen = false;
+
+function toggleChat() {
+    const widget = document.getElementById('chat-widget');
+    const body = document.getElementById('chat-body');
+    const icon = document.getElementById('chat-toggle-icon');
+    
+    isChatOpen = !isChatOpen;
+    
+    if (isChatOpen) {
+        widget.classList.remove('chat-minimized');
+        body.style.display = 'flex';
+        icon.textContent = '▼';
+        document.getElementById('chat-input').focus();
+    } else {
+        widget.classList.add('chat-minimized');
+        body.style.display = 'none';
+        icon.textContent = '▲';
+    }
+}
+
+function handleChatKey(e) {
+    if (e.key === 'Enter') sendChatMessage();
+}
+
+function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const text = input.value.trim();
+    if (!text) return;
+    
+    addChatMessage(text, 'user');
+    input.value = '';
+    
+    // Thinking state
+    const thinkingId = addThinkingIndicator();
+    
+    setTimeout(() => {
+        removeThinkingIndicator(thinkingId);
+        processIntent(text);
+    }, 600);
+}
+
+function addChatMessage(text, sender) {
+    const container = document.getElementById('chat-messages');
+    const msg = document.createElement('div');
+    msg.className = `message ${sender}`;
+    msg.textContent = text;
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+}
+
+function addThinkingIndicator() {
+    const container = document.getElementById('chat-messages');
+    const id = 'thinking-' + Date.now();
+    const msg = document.createElement('div');
+    msg.id = id;
+    msg.className = 'message assistant chat-thinking';
+    msg.innerHTML = '<div class="chat-dot"></div><div class="chat-dot" style="animation-delay: 0.2s"></div><div class="chat-dot" style="animation-delay: 0.4s"></div>';
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+    return id;
+}
+
+function removeThinkingIndicator(id) {
+    const el = document.getElementById(id);
+    if (el) el.remove();
+}
+
+function parseIntent(text) {
+    const t = text.toLowerCase();
+    
+    // Check for seat first to avoid collision with 'eat'
+    if (t.includes('seat') || t.includes('chair')) {
+        return { intent: 'NAVIGATE_TO', type: 'seat' };
+    }
+    
+    if (t.includes('washroom') || t.includes('toilet') || t.includes('wc') || t.includes('pee')) {
+        return { intent: 'FIND_FACILITY', type: 'washroom' };
+    }
+    
+    // Use regex word boundaries for 'eat' to prevent matching 'seat'
+    const hungryKeywords = /\b(food|hungry|eat|restaurant|buffet)\b/;
+    if (hungryKeywords.test(t)) {
+        return { intent: 'FIND_FACILITY', type: 'food' };
+    }
+    
+    if (t.includes('friend') || t.includes('track') || t.includes('locate')) {
+        return { intent: 'FIND_FRIEND' };
+    }
+    
+    return { intent: 'UNKNOWN' };
+}
+
+// Future: Replace local parser with Gemini API call
+async function parseIntentWithAI(text) {
+    console.log("[Gemini AI] Parsing intent for: " + text);
+    try {
+        const response = await fetch('/api/chat/parse', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ text })
+        });
+        
+        if (!response.ok) throw new Error("AI Endpoint failed");
+        
+        const data = await response.json();
+        return data;
+    } catch (error) {
+        console.warn("[Gemini AI] Fallback triggered:", error);
+        return parseIntent(text); // Secure fallback
+    }
+}
+
+async function processIntent(text) {
+    let intentData;
+    if (USE_AI) {
+        intentData = await parseIntentWithAI(text);
+    } else {
+        intentData = parseIntent(text);
+    }
+    
+    handleIntent(intentData);
+}
+
+function handleIntent(data) {
+    let response = "";
+    
+    switch(data.intent) {
+        case 'FIND_FACILITY':
+            const best = findBestFacility(data.type);
+            if (best) {
+                navigateTo(data.type);
+                const ewt = Math.round((best.queue.length / best.capacity) * (best.serviceTime / 50));
+                response = `I've found the best ${data.type} for you: **${best.label}**. \n\nDistance: ${Math.round(Math.hypot(best.x-userAvatar.x, best.y-userAvatar.y))}m\nWait time: ${ewt}s.\n\nI've plotted the fastest route for you!`;
+            } else {
+                response = `I couldn't find any available ${data.type} facilities right now.`;
+            }
+            break;
+            
+        case 'FIND_FRIEND':
+            navigateToFriend();
+            response = "Tracking your friend's current location. They are currently moving through the venue. Follow the purple path!";
+            break;
+            
+        case 'NAVIGATE_TO':
+            navigateTo(data.type);
+            if (data.type === 'seat') {
+                response = `Of course! I've located your assigned seat: **${userAvatar.assignedSeat.label}**. \n\nI've plotted the optimized path to get you there safely. Follow the purple line on your map!`;
+            } else {
+                response = `Understood. Navigating you to your ${data.type}. Follow the optimized path on your map.`;
+            }
+            break;
+            
+        default:
+            response = "I'm not quite sure how to help with that yet. Try asking 'find washroom', 'I'm hungry', or 'track my friend'.";
+    }
+    
+    addChatMessage(response, 'assistant');
+}
