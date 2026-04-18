@@ -38,12 +38,22 @@ export function navigateToCustom(snappedDestNode, clickedDestNode) {
     redrawActiveLines();
 }
 
-export function navigateTo(destType) {
-    const best = (destType === 'washroom' || destType === 'food') ? findBestFacility(destType) : null;
-    if (best) {
-        state.userAvatar.finalDestination = { x: best.x, y: best.y, id: best.id, label: best.label };
+export function navigateTo(destType, specificId = null) {
+    let best = null;
+    if (specificId) {
+        // Direct ID lookup
+        ['washroom', 'food'].forEach(type => {
+            const found = state.facilities[type].find(f => f.id === specificId);
+            if (found) best = found;
+        });
+    } else if (destType === 'washroom' || destType === 'food') {
+        best = findBestFacility(destType);
     } else if (destType === 'seat') {
         state.userAvatar.finalDestination = state.userAvatar.assignedSeat || { x: 810, y: 390, label: "VIP Seat A12" };
+    }
+    
+    if (best) {
+        state.userAvatar.finalDestination = { x: best.x, y: best.y, id: best.id, label: best.label };
     }
     
     if (!state.userAvatar.finalDestination) return;

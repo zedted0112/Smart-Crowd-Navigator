@@ -14,8 +14,7 @@ if (!apiKey) {
     console.log("Gemini API Key detected. Initializing AI...");
 }
 
-const genAI = new GoogleGenerativeAI(apiKey || "");
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -23,49 +22,55 @@ app.use(express.static(path.join(__dirname)));
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
-
-// AI Intent Parsing Endpoint
+// AI Assistant Endpoint
 app.post('/api/chat/parse', async (req, res) => {
-    const { text } = req.body;
+    const { text, context } = req.body;
     
     if (!process.env.GEMINI_API_KEY) {
         return res.status(500).json({ error: "Missing API Key", fallback: true });
     }
 
-    const prompt = `
-        You are an intent parser for a Smart Venue Navigator.
-        Given a user query, return ONLY a valid JSON object with the intent.
+    const systemPrompt = `
+        You are a highly precise intent parser for a Smart Venue.
         
-        Intents:
-        - FIND_FACILITY (types: washroom, food)
+        RETURN ONLY VALID JSON. NO PREAMBLE. NO MARKDOWN. NO CODE BLOCKS.
+        
+        SUPPORTED INTENTS:
+        - FIND_WASHROOM
+        - FIND_FOOD
         - FIND_FRIEND
-        - NAVIGATE_TO (types: seat)
+        - NAVIGATE_TO (type: seat)
         - UNKNOWN
 
-        Examples:
-        "I need to pee" -> {"intent": "FIND_FACILITY", "type": "washroom"}
-        "im hungry" -> {"intent": "FIND_FACILITY", "type": "food"}
-        "show me my friend" -> {"intent": "FIND_FRIEND"}
-        "take me to my seat" -> {"intent": "NAVIGATE_TO", "type": "seat"}
+        EXAMPLES:
+        "i need a toilet" -> {"intent":"FIND_WASHROOM"}
+        "find food" -> {"intent":"FIND_FOOD"}
+        "where is my friend" -> {"intent":"FIND_FRIEND"}
+        "take me to my chair" -> {"intent":"NAVIGATE_TO", "type":"seat"}
 
-        Query: "${text}"
+        VENUE CONTEXT (Use for specific recommendations if appropriate):
+        Scenario: ${context?.scenario || 'Normal'}
+        Facilities Status: ${JSON.stringify(context?.facilities || [])}
+
+        NOW PARSE:
+        "${text}"
     `;
 
     try {
-        // Try flash first
-        let result;
-        try {
-            result = await model.generateContent(prompt);
-        } catch (e) {
-            console.warn("Flash failed, falling back to gemini-pro...");
-            const backupModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
-            result = await backupModel.generateContent(prompt);
+        const result = await model.generateContent(systemPrompt);
+        const rawResponse = result.response.text().trim();
+        console.log("[AI Raw Response]:", rawResponse);
+        
+        // Safe JSON extraction
+        let cleanJson = rawResponse;
+        if (rawResponse.includes('{')) {
+            cleanJson = rawResponse.substring(rawResponse.indexOf('{'), rawResponse.lastIndexOf('}') + 1);
         }
-
-        const responseText = result.response.text().trim();
-        const jsonMatch = responseText.match(/\{.*\}/s);
-        const intentJson = jsonMatch ? JSON.parse(jsonMatch[0]) : { intent: "UNKNOWN" };
-        res.json(intentJson);
+        
+        const jsonRes = JSON.parse(cleanJson);
+        console.log("[AI Parsed Intent]:", jsonRes.intent);
+        
+        res.json(jsonRes);
     } catch (error) {
         console.error("Gemini Error:", error);
         res.status(500).json({ error: "AI Failed", fallback: true });
