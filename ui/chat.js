@@ -29,6 +29,14 @@ export function sendChatMessage() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
     if (!text) return;
+
+    // AI Call Throttling / Cooldown (2 seconds)
+    const now = Date.now();
+    if (state.ui.lastInteractionTime && (now - state.ui.lastInteractionTime < 2000)) {
+        addChatMessage("Please wait a moment before asking again...", 'assistant');
+        return;
+    }
+    state.ui.lastInteractionTime = now;
     
     addChatMessage(text, 'user');
     input.value = '';
@@ -103,22 +111,10 @@ export async function parseIntentWithAI(text) {
         if (!response.ok) throw new Error("AI Endpoint failed");
         
         const data = await response.json();
-        const rawRes = JSON.stringify(data);
-        console.log("AI RAW:", rawRes);
-
-        // Robust JSON extraction even if server sends a string
-        let parsed = data;
-        if (typeof data === 'string') {
-            const jsonMatch = data.match(/\{.*\}/);
-            if (!jsonMatch) throw new Error("No JSON found");
-            parsed = JSON.parse(jsonMatch[0]);
-        }
-
-        if (!parsed.intent) throw new Error("Invalid format");
-        return parsed;
-
+        const cleanJson = typeof data === 'string' ? data.match(/\{.*\}/)[0] : JSON.stringify(data);
+        const jsonRes = JSON.parse(cleanJson);
+        return jsonRes;
     } catch (error) {
-        console.warn("AI failed, using fallback:", error);
         return parseIntent(text);
     }
 }

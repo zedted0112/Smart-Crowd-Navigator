@@ -52,8 +52,10 @@ export function updateGridDensity() {
             }
         }
     }));
-    updateFacilityMetrics();
-    autoRerouteIfBlocked();
+    if (Math.random() < 0.2) { // Optimize: Only update metrics/rerouting checks 20% of intervals
+        updateFacilityMetrics();
+        autoRerouteIfBlocked();
+    }
 }
 
 export function autoRerouteIfBlocked() {
@@ -74,7 +76,6 @@ export function autoRerouteIfBlocked() {
     }
 
     if (pathIsBlocked) {
-        console.log("[Navigation] Obstruction detected on active path! Calculating detour...");
         const start = { x: state.userAvatar.x, y: state.userAvatar.y };
         const target = state.userAvatar.finalDestination || state.userAvatar.path[state.userAvatar.path.length - 1];
         

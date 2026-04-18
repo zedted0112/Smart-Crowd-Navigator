@@ -36,7 +36,7 @@ export const state = {
     },
     
     settings: {
-        numPeople: 80,
+        numPeople: 60,
         speedMultiplier: 1.0,
         corridorBias: true,
         smartRoutingEnabled: true,
