@@ -15,7 +15,7 @@ if (!apiKey) {
 }
 
 const genAI = new GoogleGenerativeAI(apiKey || "");
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname)));
@@ -58,7 +58,7 @@ app.post('/api/chat/parse', async (req, res) => {
             result = await model.generateContent(prompt);
         } catch (e) {
             console.warn("Flash failed, falling back to gemini-pro...");
-            const backupModel = genAI.getGenerativeModel({ model: "gemini-pro" });
+            const backupModel = genAI.getGenerativeModel({ model: "gemini-2.5-pro" });
             result = await backupModel.generateContent(prompt);
         }
 
